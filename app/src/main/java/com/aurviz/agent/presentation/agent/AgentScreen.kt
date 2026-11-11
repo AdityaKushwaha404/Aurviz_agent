@@ -1,7 +1,8 @@
 package com.aurviz.agent.presentation.agent
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -23,7 +24,6 @@ import com.aurviz.agent.domain.model.AgentMessage
 import com.aurviz.agent.domain.model.SensitiveAction
 import com.aurviz.agent.domain.model.ToolStatus
 import com.aurviz.agent.presentation.theme.*
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +38,6 @@ fun AgentScreen(
 
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
 
     // Auto-scroll to bottom on new message
     LaunchedEffect(messages.size, isProcessing) {
@@ -51,13 +50,21 @@ fun AgentScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Aurviz Personal Agent", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text(
-                            if (isProcessing) "Autonomous reasoning in progress..." else "Online & ready",
-                            fontSize = 12.sp,
-                            color = if (isProcessing) WarningOrange else SuccessGreen
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isProcessing) WarningOrange else SuccessGreen,
+                            modifier = Modifier.size(10.dp)
+                        ) {}
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text("Aurviz Autonomous Agent", fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                            Text(
+                                if (isProcessing) "Reasoning & Executing Tools..." else "Ready • Free Gemini 1.5 Flash",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -81,25 +88,31 @@ fun AgentScreen(
                         item {
                             SuggestionChip(
                                 onClick = { textInput = "Every morning at 9 AM, check my important emails and prepare a summary." },
-                                label = { Text("Schedule 9 AM email summary") }
+                                label = { Text("⏰ Schedule 9 AM email summary") }
                             )
                         }
                         item {
                             SuggestionChip(
-                                onClick = { textInput = "Remember that my manager is Alex and email is alex@company.com" },
-                                label = { Text("Save manager info") }
+                                onClick = { textInput = "Remember that my manager is Alex and email is alex@aurviz.com" },
+                                label = { Text("🧠 Save manager info") }
                             )
                         }
                         item {
                             SuggestionChip(
                                 onClick = { textInput = "Browse https://news.ycombinator.com and extract top headlines" },
-                                label = { Text("Browse tech news") }
+                                label = { Text("🌐 Scrape tech headlines") }
+                            )
+                        }
+                        item {
+                            SuggestionChip(
+                                onClick = { textInput = "Send an email to my manager with a project status update." },
+                                label = { Text("✉️ Send email (HITL Gate)") }
                             )
                         }
                     }
                 }
 
-                // Input Bar with Voice Button & Send
+                // Input Bar with Animated Voice Button & Send
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -110,7 +123,7 @@ fun AgentScreen(
                             else viewModel.startVoiceInput()
                         },
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (isListening) ErrorRed else PrimaryBlue.copy(alpha = 0.1f)
+                            containerColor = if (isListening) ErrorRed else PrimaryBlue.copy(alpha = 0.12f)
                         )
                     ) {
                         Icon(
@@ -125,7 +138,7 @@ fun AgentScreen(
                     OutlinedTextField(
                         value = textInput,
                         onValueChange = { textInput = it },
-                        placeholder = { Text(if (isListening) "Listening to voice..." else "Ask or command your agent...") },
+                        placeholder = { Text(if (isListening) "Listening to voice input..." else "Speak or command your agent...") },
                         modifier = Modifier.weight(1f),
                         maxLines = 3,
                         shape = RoundedCornerShape(24.dp)
@@ -178,13 +191,13 @@ fun AgentScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "Autonomous Personal AI Agent",
+                        "Aurviz Personal AI Agent",
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "I understand voice commands, persist personal memories, automate web navigation, and execute scheduled tasks.",
+                        "Autonomous mobile agent that understands voice commands, manages personal memories, automates web navigation, and executes scheduled real-world tasks.",
                         color = TextSecondary,
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -210,7 +223,7 @@ fun AgentScreen(
                 }
             }
 
-            // Sensitive Action Confirmation Dialog (Human-in-the-Loop)
+            // Sensitive Action Confirmation Dialog (Human-in-the-Loop with Interactive Editor)
             pendingConfirmation?.let { action ->
                 ConfirmationDialog(
                     action = action,
@@ -251,10 +264,14 @@ fun MessageItem(message: AgentMessage) {
             }
         }
         is AgentMessage.ToolAction -> {
+            var expanded by remember { mutableStateOf(false) }
+
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = ToolBadgeBackground,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(
@@ -273,11 +290,20 @@ fun MessageItem(message: AgentMessage) {
                     if (!message.resultOutput.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            message.resultOutput,
+                            text = message.resultOutput,
                             fontSize = 12.sp,
                             color = TextSecondary,
-                            maxLines = 6
+                            maxLines = if (expanded) Int.MAX_VALUE else 4
                         )
+                        if (!expanded && message.resultOutput.length > 120) {
+                            Text(
+                                "Tap to view full output...",
+                                fontSize = 11.sp,
+                                color = PrimaryBlue,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -373,19 +399,24 @@ fun ConfirmationDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var editableRecipient by remember { mutableStateOf(if (action is SensitiveAction.SendEmail) action.recipient else "") }
+    var editableSubject by remember { mutableStateOf(if (action is SensitiveAction.SendEmail) action.subject else "") }
+    var editableBody by remember { mutableStateOf(if (action is SensitiveAction.SendEmail) action.body else "") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(Icons.Default.Security, contentDescription = null, tint = WarningOrange, modifier = Modifier.size(32.dp))
         },
         title = {
-            Text("Sensitive Action Approval Required", fontWeight = FontWeight.Bold)
+            Text("Sensitive Action Approval Required", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "The agent is requesting permission to execute a real-world action:",
-                    fontSize = 13.sp
+                    "The agent is requesting permission to execute an external action. You can review or edit the details below:",
+                    fontSize = 12.sp,
+                    color = TextSecondary
                 )
                 when (action) {
                     is SensitiveAction.SendEmail -> {
@@ -394,11 +425,28 @@ fun ConfirmationDialog(
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(8.dp)) {
-                                Text("To: ${action.recipient}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                                Text("Subject: ${action.subject}", fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Body Preview: ${action.body.take(120)}...", fontSize = 12.sp, color = TextSecondary)
+                            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedTextField(
+                                    value = editableRecipient,
+                                    onValueChange = { editableRecipient = it },
+                                    label = { Text("To") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = editableSubject,
+                                    onValueChange = { editableSubject = it },
+                                    label = { Text("Subject") },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                OutlinedTextField(
+                                    value = editableBody,
+                                    onValueChange = { editableBody = it },
+                                    label = { Text("Body") },
+                                    maxLines = 4,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
                         }
                     }

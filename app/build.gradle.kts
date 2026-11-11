@@ -101,6 +101,10 @@ dependencies {
     // Encrypted Preferences (Keystore-backed security)
     implementation(libs.androidx.security.crypto)
 
+    // Unit Testing
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+
     // Debugging
     debugImplementation(libs.androidx.ui.tooling)
 }
