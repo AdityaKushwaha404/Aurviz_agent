@@ -21,8 +21,8 @@ interface ScheduledTaskDao {
     @Query("DELETE FROM scheduled_tasks WHERE id = :id")
     suspend fun deleteTask(id: String)
 
-    @Query("UPDATE scheduled_tasks SET lastExecutionEpoch = :epoch, lastExecutionStatus = :status WHERE id = :id")
-    suspend fun updateExecutionStatus(id: String, epoch: Long, status: String)
+    @Query("UPDATE scheduled_tasks SET lastExecutionEpoch = :epoch, lastExecutionStatus = :status, nextRunEpoch = :nextRunEpoch, isEnabled = :enabled WHERE id = :id")
+    suspend fun updateExecutionStatus(id: String, epoch: Long, status: String, nextRunEpoch: Long, enabled: Boolean)
 
     @Query("UPDATE scheduled_tasks SET isEnabled = :enabled WHERE id = :id")
     suspend fun updateTaskEnabled(id: String, enabled: Boolean)

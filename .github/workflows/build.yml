@@ -24,17 +24,15 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Create local.properties with Mock Secret for CI
+    - name: Create local.properties with Android SDK path
       run: |
         echo "sdk.dir=$ANDROID_HOME" > local.properties
-        echo "GEMINI_API_KEY=AIzaSyCiBuildMockKeyForVerification" >> local.properties
-        echo "DEFAULT_TEST_EMAIL=ci@aurviz.com" >> local.properties
 
     - name: Run Unit Tests
-      run: ./gradlew testDebugUnitTest --continue || true
+      run: ./gradlew app:testDebugUnitTest
 
     - name: Build Debug APK
-      run: ./gradlew assembleDebug --stacktrace
+      run: ./gradlew app:assembleDebug --stacktrace
 
     - name: Upload Debug APK Artifact
       uses: actions/upload-artifact@v4

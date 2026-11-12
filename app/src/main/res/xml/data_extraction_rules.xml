@@ -5,7 +5,7 @@
         <exclude domain="database" path="aurviz_agent.db"/>
     </cloud-backup>
     <device-transfer>
-        <include domain="sharedpref" path="secure_agent_prefs.xml"/>
-        <include domain="database" path="aurviz_agent.db"/>
+        <exclude domain="sharedpref" path="secure_agent_prefs.xml"/>
+        <exclude domain="database" path="aurviz_agent.db"/>
     </device-transfer>
 </data-extraction-rules>

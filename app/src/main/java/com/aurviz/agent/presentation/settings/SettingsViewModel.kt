@@ -2,13 +2,17 @@ package com.aurviz.agent.presentation.settings
 
 import androidx.lifecycle.ViewModel
 import com.aurviz.agent.core.security.SecurePreferences
+import com.aurviz.agent.data.remote.GmailAccessManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsViewModel(
-    private val securePreferences: SecurePreferences
+    private val securePreferences: SecurePreferences,
+    gmailAccessManager: GmailAccessManager
 ) : ViewModel() {
+
+    val gmailConnectionState: StateFlow<String> = gmailAccessManager.connectionState
 
     private val _apiKey = MutableStateFlow(securePreferences.getGeminiApiKey())
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
@@ -19,14 +23,30 @@ class SettingsViewModel(
     private val _voiceFeedback = MutableStateFlow(securePreferences.isVoiceFeedbackEnabled())
     val voiceFeedback: StateFlow<Boolean> = _voiceFeedback.asStateFlow()
 
+    private val _storageMessage = MutableStateFlow(
+        if (securePreferences.isSecureStorageAvailable) null
+        else "Encrypted storage is unavailable. Secrets and email addresses cannot be saved."
+    )
+    val storageMessage: StateFlow<String?> = _storageMessage.asStateFlow()
+
     fun updateApiKey(key: String) {
-        _apiKey.value = key
-        securePreferences.saveGeminiApiKey(key)
+        try {
+            securePreferences.saveGeminiApiKey(key)
+            _apiKey.value = key
+            _storageMessage.value = "API key saved in encrypted storage."
+        } catch (error: Exception) {
+            _storageMessage.value = error.message ?: "Encrypted storage is unavailable; the key was not saved."
+        }
     }
 
     fun updateDefaultEmail(email: String) {
-        _defaultEmail.value = email
-        securePreferences.saveDefaultEmail(email)
+        try {
+            securePreferences.saveDefaultEmail(email)
+            _defaultEmail.value = email
+            _storageMessage.value = "Default email saved in encrypted storage."
+        } catch (error: Exception) {
+            _storageMessage.value = error.message ?: "Encrypted storage is unavailable; the email address was not saved."
+        }
     }
 
     fun setVoiceFeedback(enabled: Boolean) {

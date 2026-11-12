@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.aurviz.agent.presentation.agent.AgentViewModel
@@ -16,6 +17,14 @@ import com.aurviz.agent.presentation.tasks.TasksViewModel
 import com.aurviz.agent.presentation.theme.AurvizTheme
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var gmailAccessManager: com.aurviz.agent.data.remote.GmailAccessManager
+
+    private val gmailAuthorizationLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        gmailAccessManager.handleAuthorizationResult(this, result.data)
+    }
 
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -30,6 +39,7 @@ class MainActivity : ComponentActivity() {
         checkAndRequestPermissions()
 
         val app = application as AurvizApp
+        gmailAccessManager = app.gmailAccessManager
 
         val agentViewModel = AgentViewModel(
             orchestrator = app.agentOrchestrator,
@@ -46,7 +56,8 @@ class MainActivity : ComponentActivity() {
         )
 
         val settingsViewModel = SettingsViewModel(
-            securePreferences = app.securePreferences
+            securePreferences = app.securePreferences,
+            gmailAccessManager = app.gmailAccessManager
         )
 
         setContent {
@@ -55,7 +66,15 @@ class MainActivity : ComponentActivity() {
                     agentViewModel = agentViewModel,
                     memoryViewModel = memoryViewModel,
                     tasksViewModel = tasksViewModel,
-                    settingsViewModel = settingsViewModel
+                    settingsViewModel = settingsViewModel,
+                    browserAgentController = app.browserAgentController,
+                    onConnectGmail = {
+                        gmailAccessManager.authorize(this) { intentSender ->
+                            gmailAuthorizationLauncher.launch(
+                                IntentSenderRequest.Builder(intentSender).build()
+                            )
+                        }
+                    }
                 )
             }
         }

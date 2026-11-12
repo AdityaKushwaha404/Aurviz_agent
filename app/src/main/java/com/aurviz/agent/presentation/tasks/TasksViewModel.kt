@@ -16,6 +16,10 @@ class TasksViewModel(
     val tasks: StateFlow<List<ScheduledTask>> = schedulerRepository.getAllTasks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    fun updateTask(task: ScheduledTask) {
+        viewModelScope.launch { schedulerRepository.updateTask(task) }
+    }
+
     fun cancelTask(id: String) {
         viewModelScope.launch {
             schedulerRepository.cancelTask(id)

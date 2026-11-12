@@ -39,4 +39,11 @@ class TimeUtilsTest {
         assertEquals(9, hour)
         assertEquals(0, minute)
     }
+
+    @Test
+    fun tryParseHourAndMinute_rejectsInvalidOrMissingTime() {
+        assertEquals(null, TimeUtils.tryParseHourAndMinute("schedule this later"))
+        assertEquals(null, TimeUtils.tryParseHourAndMinute("25:90"))
+        assertEquals(9 to 30, TimeUtils.tryParseHourAndMinute("9:30 AM"))
+    }
 }

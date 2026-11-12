@@ -22,6 +22,9 @@ class AgentViewModel(
     val isProcessing: StateFlow<Boolean> = orchestrator.isProcessing
     val pendingConfirmation: StateFlow<SensitiveAction?> = orchestrator.pendingConfirmation
     val isListening: StateFlow<Boolean> = voiceManager.isListening
+    val recognizedText: StateFlow<String?> = voiceManager.recognizedText
+    val rmsLevel: StateFlow<Float> = voiceManager.rmsLevel
+    val isSpeaking: StateFlow<Boolean> = voiceManager.isSpeaking
 
     init {
         // Collect spoken agent responses if voice feedback is enabled
@@ -40,6 +43,10 @@ class AgentViewModel(
         }
     }
 
+    fun clearConversation() {
+        orchestrator.clearConversation()
+    }
+
     fun startVoiceInput() {
         voiceManager.startListening { recognizedText ->
             sendPrompt(recognizedText, isVoice = true)
@@ -50,8 +57,12 @@ class AgentViewModel(
         voiceManager.stopListening()
     }
 
-    fun onConfirmAction(approved: Boolean) {
-        orchestrator.confirmPendingAction(approved)
+    fun stopSpeaking() {
+        voiceManager.stopSpeaking()
+    }
+
+    fun onConfirmAction(approved: Boolean, editedArguments: Map<String, Any?>? = null) {
+        orchestrator.confirmPendingAction(approved, editedArguments)
     }
 
     override fun onCleared() {

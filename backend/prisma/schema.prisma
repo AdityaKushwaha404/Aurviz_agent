@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ScheduledEmailStatus {
+  SCHEDULED
+  PROCESSING
+  UPDATING
+  SENT
+  FAILED
+  CANCELLED
+  UNKNOWN
+}
+
+model GoogleAccount {
+  id                    String          @id @default(uuid()) @db.Uuid
+  email                 String          @unique
+  encryptedRefreshToken String          @db.Text
+  disconnectedAt        DateTime?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  appCodes              AppAuthCode[]
+  deviceSessions        DeviceSession[]
+  scheduledEmails       ScheduledEmail[]
+}
+
+model AppAuthCode {
+  id        String        @id @default(uuid()) @db.Uuid
+  codeHash  String        @unique
+  accountId String        @db.Uuid
+  account   GoogleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([expiresAt])
+}
+
+model DeviceSession {
+  id        String        @id @default(uuid()) @db.Uuid
+  tokenHash String        @unique
+  accountId String        @db.Uuid
+  account   GoogleAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([accountId, expiresAt])
+}
+
+model ScheduledEmail {
+  id             String               @id @default(uuid()) @db.Uuid
+  accountId      String               @db.Uuid
+  account        GoogleAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  recipient      String
+  subject        String
+  body           String               @db.Text
+  scheduledAt    DateTime
+  timeZone       String
+  status         ScheduledEmailStatus @default(SCHEDULED)
+  idempotencyKey String               @unique
+  pgBossJobId    String?
+  jobVersion     Int                  @default(1)
+  messageId      String?
+  attempts       Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  executionAt    DateTime?
+  lastError      String?              @db.VarChar(500)
+  history        EmailExecution[]
+
+  @@index([accountId, createdAt])
+  @@index([accountId, status, scheduledAt])
+}
+
+model EmailExecution {
+  id              String               @id @default(uuid()) @db.Uuid
+  scheduledEmailId String               @db.Uuid
+  email            ScheduledEmail       @relation(fields: [scheduledEmailId], references: [id], onDelete: Cascade)
+  attempt          Int
+  status           ScheduledEmailStatus
+  errorDetails     String?              @db.VarChar(500)
+  gmailMessageId   String?
+  createdAt        DateTime             @default(now())
+
+  @@unique([scheduledEmailId, attempt])
+  @@index([scheduledEmailId, createdAt])
+}

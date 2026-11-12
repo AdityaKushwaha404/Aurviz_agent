@@ -19,7 +19,7 @@ class WebAutomationTool(
         val extracted = webScraper.browseAndExtract(url, action)
         return ToolExecutionResponse(
             toolName = name,
-            isSuccess = true,
+            isSuccess = !extracted.startsWith("Error:"),
             output = extracted
         )
     }

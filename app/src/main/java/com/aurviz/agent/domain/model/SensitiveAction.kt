@@ -17,4 +17,14 @@ sealed class SensitiveAction {
         override val description: String,
         val target: String
     ) : SensitiveAction()
+
+    data class BrowserInteraction(
+        override val actionId: String = java.util.UUID.randomUUID().toString(),
+        override val description: String,
+        val operation: String,
+        val selector: String,
+        val text: String? = null,
+        val pageTitle: String,
+        val pageUrl: String
+    ) : SensitiveAction()
 }

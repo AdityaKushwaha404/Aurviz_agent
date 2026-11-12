@@ -1,10 +1,8 @@
 package com.aurviz.agent.core.security
 
 import android.content.Context
-import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import com.aurviz.agent.BuildConfig
 
 /**
  * Manages encrypted key-value storage using Android Keystore and EncryptedSharedPreferences.
@@ -12,11 +10,10 @@ import com.aurviz.agent.BuildConfig
  */
 class SecurePreferences(context: Context) {
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val sharedPreferences: SharedPreferences = try {
+    private val securePreferences = runCatching {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
         EncryptedSharedPreferences.create(
             context,
             PREFS_FILENAME,
@@ -24,42 +21,43 @@ class SecurePreferences(context: Context) {
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
-    } catch (e: Exception) {
-        // Fallback to standard private mode in case of emulator Keystore issues
-        context.getSharedPreferences(PREFS_FILENAME, Context.MODE_PRIVATE)
-    }
+    }.getOrNull()
+    private val preferences = context.getSharedPreferences("agent_settings", Context.MODE_PRIVATE)
+
+    val isSecureStorageAvailable: Boolean get() = securePreferences != null
 
     fun getGeminiApiKey(): String {
-        val storedKey = sharedPreferences.getString(KEY_GEMINI_API_KEY, null)
+        val storedKey = securePreferences?.getString(KEY_GEMINI_API_KEY, null)
         if (!storedKey.isNullOrBlank()) {
             return storedKey
         }
-        // Fallback to BuildConfig if provided in local.properties
-        return BuildConfig.GEMINI_API_KEY
+        return ""
     }
 
     fun saveGeminiApiKey(apiKey: String) {
-        sharedPreferences.edit()
+        checkNotNull(securePreferences) { "Encrypted storage is unavailable. The API key was not saved." }
+            .edit()
             .putString(KEY_GEMINI_API_KEY, apiKey.trim())
             .apply()
     }
 
     fun getDefaultEmail(): String {
-        return sharedPreferences.getString(KEY_DEFAULT_EMAIL, "user@example.com") ?: "user@example.com"
+        return securePreferences?.getString(KEY_DEFAULT_EMAIL, null) ?: "user@example.com"
     }
 
     fun saveDefaultEmail(email: String) {
-        sharedPreferences.edit()
+        checkNotNull(securePreferences) { "Encrypted storage is unavailable. The email address was not saved." }
+            .edit()
             .putString(KEY_DEFAULT_EMAIL, email.trim())
             .apply()
     }
 
     fun isVoiceFeedbackEnabled(): Boolean {
-        return sharedPreferences.getBoolean(KEY_VOICE_FEEDBACK, true)
+        return preferences.getBoolean(KEY_VOICE_FEEDBACK, true)
     }
 
     fun setVoiceFeedbackEnabled(enabled: Boolean) {
-        sharedPreferences.edit()
+        preferences.edit()
             .putBoolean(KEY_VOICE_FEEDBACK, enabled)
             .apply()
     }

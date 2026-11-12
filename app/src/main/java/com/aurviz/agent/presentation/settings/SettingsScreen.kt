@@ -1,6 +1,5 @@
 package com.aurviz.agent.presentation.settings
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -24,17 +22,19 @@ import com.aurviz.agent.presentation.theme.*
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
+    onConnectGmail: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val gmailConnectionState by viewModel.gmailConnectionState.collectAsState()
     val currentApiKey by viewModel.apiKey.collectAsState()
     val currentEmail by viewModel.defaultEmail.collectAsState()
     val voiceFeedback by viewModel.voiceFeedback.collectAsState()
+    val storageMessage by viewModel.storageMessage.collectAsState()
 
     var keyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
     var emailInput by remember(currentEmail) { mutableStateOf(currentEmail) }
     var keyVisible by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
     val scrollState = rememberScrollState()
 
     Scaffold(
@@ -63,11 +63,11 @@ fun SettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Hardware-Backed Keystore Security", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text("Keystore-Backed Encrypted Storage", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "Your API keys and credentials are encrypted using AES-256 GCM in Android EncryptedSharedPreferences and are excluded from cloud backups.",
+                        "API keys and email addresses use encrypted preferences and are excluded from cloud backup and device transfer.",
                         fontSize = 12.sp,
                         color = TextSecondary
                     )
@@ -98,7 +98,6 @@ fun SettingsScreen(
             Button(
                 onClick = {
                     viewModel.updateApiKey(keyInput)
-                    Toast.makeText(context, "Gemini API key saved securely!", Toast.LENGTH_SHORT).show()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
                 shape = RoundedCornerShape(12.dp),
@@ -106,8 +105,33 @@ fun SettingsScreen(
             ) {
                 Text("Save API Key")
             }
+            storageMessage?.let { message ->
+                Text(message, color = if (message.contains("saved in encrypted storage")) SuccessGreen else ErrorRed)
+            }
 
             HorizontalDivider()
+
+            // Gmail delivery
+            Text("Email delivery", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(gmailConnectionState, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Aurviz sends only after you approve the recipient, subject, and message. Google grants send-only Gmail access.",
+                        fontSize = 13.sp,
+                        color = TextSecondary
+                    )
+                    Button(onClick = onConnectGmail) {
+                        Text("Connect Gmail")
+                    }
+                }
+            }
 
             // Tool Configuration Section
             Text("Tool Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -115,8 +139,8 @@ fun SettingsScreen(
             OutlinedTextField(
                 value = emailInput,
                 onValueChange = { emailInput = it },
-                label = { Text("Default Email Account") },
-                placeholder = { Text("user@company.com") },
+                label = { Text("Default recipient email") },
+                placeholder = { Text("recipient@company.com") },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
@@ -124,7 +148,6 @@ fun SettingsScreen(
             Button(
                 onClick = {
                     viewModel.updateDefaultEmail(emailInput)
-                    Toast.makeText(context, "Default email saved!", Toast.LENGTH_SHORT).show()
                 },
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.align(Alignment.End)

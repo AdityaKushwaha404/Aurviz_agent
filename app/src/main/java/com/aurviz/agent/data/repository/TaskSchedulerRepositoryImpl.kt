@@ -76,6 +76,11 @@ class TaskSchedulerRepositoryImpl(
         }
     }
 
+    override suspend fun updateTask(task: ScheduledTask) {
+        workManager.cancelUniqueWork("task_${task.id}")
+        scheduleTask(task)
+    }
+
     override suspend fun cancelTask(id: String) {
         workManager.cancelUniqueWork("task_$id")
         taskDao.deleteTask(id)
@@ -94,10 +99,18 @@ class TaskSchedulerRepositoryImpl(
             .build()
 
         workManager.enqueue(workRequest)
-        return "Task '${task.title}' triggered immediately in background."
+        return "Task '${task.title}' queued. Android may defer background work while the device is idle."
     }
 
     override suspend fun updateTaskStatus(id: String, lastExecutionEpoch: Long, status: String) {
-        taskDao.updateExecutionStatus(id, lastExecutionEpoch, status)
+        val task = taskDao.getTaskById(id) ?: return
+        val nextRunEpoch = if (task.isRecurring) {
+            lastExecutionEpoch + TimeUnit.DAYS.toMillis(1)
+        } else {
+            task.nextRunEpoch
+        }
+        // One-time work is no longer scheduled after its attempt; it remains in history and can be triggered again.
+        val enabled = task.isRecurring
+        taskDao.updateExecutionStatus(id, lastExecutionEpoch, status, nextRunEpoch, enabled)
     }
 }

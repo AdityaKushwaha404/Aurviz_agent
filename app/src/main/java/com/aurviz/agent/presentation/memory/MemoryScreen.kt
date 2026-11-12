@@ -82,7 +82,7 @@ fun MemoryScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterVertically) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.Psychology, contentDescription = null, modifier = Modifier.size(56.dp), tint = TextSecondary)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("No memories found.", fontWeight = FontWeight.SemiBold, color = TextSecondary)
@@ -186,7 +186,7 @@ fun MemoryItemCard(
             Text(
                 text = "Saved ${TimeUtils.formatDateTime(memory.createdAt)}",
                 fontSize = 11.sp,
-                color = Color.Gray
+                color = TextSecondary
             )
         }
     }

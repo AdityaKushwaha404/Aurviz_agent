@@ -1,186 +1,90 @@
-# Aurviz Personal AI Agent — System Architecture Documentation
+# Architecture
 
-## 1. Overall System Architecture
-
-The application is engineered using **Clean Architecture** patterns combined with **MVI / MVVM** reactive state management. This ensures strict decoupling between UI rendering, agent orchestration logic, persistent storage, and background platform execution.
+## System view
 
 ```mermaid
-graph TB
-    subgraph PresentationLayer ["Presentation Layer (Jetpack Compose)"]
-        UI_Agent[Agent Chat & ReAct Timeline]
-        UI_Memory[Memory Management Screen]
-        UI_Tasks[Scheduled Tasks Dashboard]
-        UI_Settings[Settings & Security Screen]
-        UI_HITL[HITL Confirmation Dialog]
+flowchart TD
+    Person[Voice or text] --> Compose[Compose UI]
+    Compose --> VM[ViewModels]
+    VM --> Orchestrator[AgentOrchestrator]
+    Orchestrator --> Gemini[Gemini REST function calling]
+    Orchestrator --> Registry[ToolRegistry]
+    Registry --> MemoryTool[Memory tool]
+    Registry --> ScheduleTool[Local scheduler tool]
+    Registry --> WebTool[Public page fetcher]
+    Registry --> BrowserTools[Agent browser tools]
+    Registry --> EmailTool[Foreground Gmail tool]
+    MemoryTool --> Room[(Room memories)]
+    ScheduleTool --> TaskRepo[Task repository]
+    TaskRepo --> WorkManager[Android WorkManager]
+    BrowserTools --> BrowserController[BrowserAgentController commands]
+    BrowserController --> WebView[Controlled Android WebView]
+    WebView --> BrowserController
+    TaskRepo --> Tasks[(Room scheduled tasks)]
+    Orchestrator --> ChatStore[Bounded JSON conversation store]
+    subgraph Separate backend — not yet called by Android
+      OAuth[Express OAuth and API]
+      OAuth --> Postgres[(PostgreSQL + Prisma)]
+      OAuth --> Gmail[Gmail API]
+      Postgres --> Queue[pg-boss persistent jobs]
+      Queue --> Worker[Backend email worker]
+      Worker --> Gmail
     end
-
-    subgraph DomainLayer ["Domain Layer (Core Business & Agent Logic)"]
-        Orchestrator[Agent Orchestrator / ReAct Engine]
-        ToolRegistry[Tool Registry]
-        VoiceManager[Voice Pipeline Manager]
-        DomainModels[Domain Models: AgentMessage, Memory, ScheduledTask]
-    end
-
-    subgraph DataLayer ["Data & Infrastructure Layer"]
-        GeminiClient[Gemini 1.5 Flash Client]
-        RoomDB[(Room SQLite DB\nMemories & Tasks)]
-        WorkMgr[Android WorkManager]
-        SecureStorage[Keystore / EncryptedSharedPreferences]
-        
-        subgraph Tools ["Agent Tool Implementations"]
-            Tool_Email[Email Tool]
-            Tool_Web[Controlled Web Scraper]
-            Tool_Schedule[Scheduler Tool]
-            Tool_Memory[Memory Tool]
-        end
-    end
-
-    UI_Agent --> Orchestrator
-    UI_HITL --> Orchestrator
-    UI_Memory --> RoomDB
-    UI_Tasks --> WorkMgr
-    UI_Settings --> SecureStorage
-
-    Orchestrator --> GeminiClient
-    Orchestrator --> ToolRegistry
-    Orchestrator --> RoomDB
-    
-    ToolRegistry --> Tools
-    Tool_Schedule --> WorkMgr
-    Tool_Memory --> RoomDB
-    Tool_Email --> UI_HITL
 ```
 
----
+The application is a single Android module with UI, orchestration, repositories, platform services, and tools separated by package. The backend is a separately deployable Node.js service.
 
-## 2. AI Agent Reasoning & Tool-Calling Workflow
+## Interactive agent flow
 
-The agent employs a **ReAct (Reasoning + Acting)** execution loop:
-1. **Context Enrichment**: Before calling the LLM, the orchestrator retrieves the user's top recent memories and preferences from Room DB.
-2. **Intent & Planning**: The enriched prompt, conversation history, and tool declarations are dispatched to Gemini (`gemini-1.5-flash`).
-3. **Structured Tool Invocation**: If Gemini determines an action is needed, it returns a structured JSON payload containing `thought`, `tool`, and `arguments`.
-4. **Execution & Human-in-the-Loop Check**:
-   * If the tool is non-sensitive (e.g. `browse_web`, `manage_memory`, `schedule_task`), the tool runs immediately and returns the output to the agent.
-   * If the tool is sensitive (e.g. `send_email`), the loop **suspends**, popping a modal dialog requiring explicit user approval.
-5. **Observation & Synthesis**: The tool output is appended to the conversation history as an observation. The agent reasons on the outcome and produces either the next step or the final synthesized response.
+1. Speech recognition or typed input produces a user prompt.
+2. The orchestrator fetches lexical memory matches, falling back to recent memories; it sends up to 12 prior user/assistant text messages as context.
+3. Gemini receives system instructions and declared tool functions.
+4. Tool calls run through the registry, with a four-step limit. Results and statuses return to the model and appear in chat.
+5. Direct Gmail send pauses for explicit approval of recipient, subject, and body. The confirmation gate runs before Gmail API delivery.
+6. Agent browser commands route through a shared BrowserAgentController to the visible WebView. Click and text-entry calls require explicit approval. Read and navigation results are returned as tool results.
+7. Conversation messages and tool states are persisted locally, bounded to 100 items.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant Agent as Agent Orchestrator
-    participant Memory as Room Memory DB
-    participant LLM as Google Gemini API
-    participant Tools as Tool Execution Engine
-    participant HITL as User Confirmation Gate
+The Gemini REST client preserves raw model function-call parts/signatures and call IDs in follow-up turns so function responses match the request.
 
-    User->>Agent: "Check emails and send summary to Alex"
-    Agent->>Memory: Retrieve relevant user memories (e.g., Alex's email)
-    Memory-->>Agent: Returns: [Alex = alex@company.com]
-    Agent->>LLM: Prompt + Injected Memories + Tool Definitions
-    LLM-->>Agent: Action: Tool: send_email(to="alex@company.com", body="...")
-    Agent->>HITL: Prompt user confirmation with email preview
-    HITL-->>User: Display Action Confirmation Dialog
-    User->>HITL: Taps "Approve & Execute"
-    HITL-->>Agent: Approval Signal
-    Agent->>Tools: Execute EmailTool.sendEmailNow()
-    Tools-->>Agent: Success ("Dispatched to alex@company.com")
-    Agent->>LLM: Tool Observation
-    LLM-->>Agent: Final Response ("Summary has been sent to Alex.")
-    Agent-->>User: Display & Voice Final Response
-```
+## Memory and conversation
 
----
+Room holds explicit memories and scheduled task data. Memory retrieval is lexical, not vector-based. ConversationStore writes one bounded JSON history file; it survives restarts and can be cleared. It does not yet support multiple threads, message editing, or cross-device sync.
 
-## 3. Personal Memory Layer Design
+## Voice and local scheduling
 
-### Data Modeling (`Room DB`)
-* **Entity**: `MemoryEntity(id, key, content, category, createdAt, importance)`
-* **Indexing & Queries**: Optimized search with case-insensitive `LIKE` queries over keys, content, and categories.
-* **Auto-Extraction**: When the agent encounters personal statements ("My car is a Honda", "I work at Aurviz"), it autonomously invokes `manage_memory(action='save', ...)` to write to the database.
-* **User Sovereignty**: Users retain complete control. The **Memory Tab** in the UI allows viewing all persisted items, filtering by category, manually adding facts, and permanently deleting entries.
+SpeechRecognizer converts voice to text; typed and voice requests use the same orchestrator. TextToSpeech speaks responses when enabled. Local tasks use WorkManager for persistent, battery-aware execution. Android may defer these jobs, and periodic work is not an exact local wall-clock cron scheduler.
 
-```mermaid
-erDiagram
-    MEMORIES {
-        long id PK
-        string key
-        string content
-        string category
-        long createdAt
-        int importance
-    }
-    SCHEDULED_TASKS {
-        string id PK
-        string title
-        string cronExpression
-        string promptAction
-        boolean isRecurring
-        int hourOfDay
-        int minute
-        long nextRunEpoch
-        boolean isEnabled
-        long lastExecutionEpoch
-        string lastExecutionStatus
-    }
-```
+Scheduled agent runs reject sensitive tools. Background email delivery must go through the separate backend after Android integration provides a confirmation flow.
 
----
+## Browser control
 
-## 4. Voice-to-Action Execution Pipeline
+The BrowserAgentController provides a single active browser session and a command/result channel between tools and the browser screen. Tools include `open_url`, `search_webpage`, `read_page`, `click_element`, `enter_text`, `scroll_page`, `navigate_back`, `navigate_forward`, and `get_browser_state`. The WebView executes narrowly scoped DOM operations using safely encoded arguments, but exposes no JavaScript interface to page scripts. Top-level navigation is restricted to HTTPS and obvious local/private literal destinations are rejected; agent URL opens also resolve DNS and reject private destinations. Loads have a timeout, and the user can see page activity.
 
-1. **Audio Capture**: Android `SpeechRecognizer` stream handles on-device / network speech recognition with `RecognitionListener` state callbacks (`onReadyForSpeech`, `onBeginningOfSpeech`, `onResults`).
-2. **Dynamic UI Feedback**: The UI indicates microphone state (pulsing audio activity, listening state).
-3. **Dispatch to ReAct Loop**: The recognized string is flagged as `isVoiceInput = true` and piped into `AgentOrchestrator.processUserPrompt()`.
-4. **Text-to-Speech (TTS) Feedback**: Completed agent responses are routed to Android's `TextToSpeech` engine for conversational vocal responses (configurable in Settings).
+Clicks and entering text pause for user review. Entering text does not submit a form; page clicks may cause page effects, so the confirmation screen shows the requested action/selector. This is a controlled WebView, not a full browser security sandbox. Third-party page scripts still run inside WebView; avoid authenticated or financial workflows until stronger domain allowlists and device testing are in place. Browser control compiled but was not exercised on a connected device in the latest test run.
 
----
+## Gmail and scheduled email backend
 
-## 5. Scheduling & Background Execution Strategy
+Android's existing direct Gmail tool uses Google Identity Services to obtain a short-lived Gmail send token held in process memory. It requires reconnecting after process loss and is not used by WorkManager.
 
-Executing background tasks reliably on modern Android devices requires navigating **Doze Mode, App Standby Buckets, and OS Battery Restrictions**.
+The separate backend uses a Google Web OAuth flow with `openid`, `email`, and `gmail.send`. It validates OAuth state, exchanges the code server-side, encrypts refresh tokens with AES-256-GCM, and returns a short-lived one-time code to Android. The app exchanges that for an opaque server session token. Only hashes of app session/code credentials are stored.
 
-### Strategy Comparison & Decision
-| Mechanism | Accuracy | Battery Impact | Doze Mode Compatibility | Assignment Fit |
-| :--- | :--- | :--- | :--- | :--- |
-| **Android WorkManager** (Chosen Default) | Windowed ($\pm 15$ min) | Very Low (Batched) | Fully Supported & Recommended by Google | **Ideal for daily cron recurring summaries** |
-| **AlarmManager (`setExactAndAllowWhileIdle`)** | Exact to the second | Moderate-High | Wakes CPU from Doze | Supported for precision-critical alerts |
+PostgreSQL holds account, session, scheduled email, and execution-history rows. pg-boss persists jobs in PostgreSQL. Each job contains the email ID and version; editing increments the version so a stale queued job cannot send the updated email early. Startup reconciles scheduled rows without an associated job. Retries are bounded for explicit Gmail HTTP 429 quota rejections. Definite other 4xx responses become `FAILED`; 5xx and network results become `UNKNOWN` without automatic resend because Gmail acceptance may be ambiguous. Gmail API plus a separate database cannot guarantee exactly-once side effects.
 
-### Implementation:
-1. When the agent schedules a task (e.g., *"Every morning at 9 AM, check emails"*):
-   * Initial delay is calculated: `calculateInitialDelayForTime(9, 0)`.
-   * Enqueued as a `PeriodicWorkRequest` with 24-hour recurrence and unique tag `task_${id}`.
-2. At trigger time, `ScheduledTaskWorker` wakes up in the background:
-   * Instantiates the agent orchestrator.
-   * Executes the prompt action autonomously.
-   * Updates Room DB with the execution log timestamp and status.
-   * Posts an Android System Notification to the user (`NotificationManager`).
+The backend API/OAuth and worker are implemented but Android does not yet call them. The backend has not been exercised against a live database, Google OAuth account, Gmail send, or restarted worker. Email-sending integration and backend scheduled-email management remain incomplete end-to-end.
 
----
+## Security and error handling
 
-## 6. Security, Permissions & Failure Handling
+- Gemini keys are entered in Settings and saved with encrypted preferences. No plaintext fallback is used.
+- No Web OAuth secret or refresh token is present in Android source or backend sample configuration. The Web client secret shared in chat must be rotated before use.
+- Backend values are read from environment configuration. Its dependency audit reports zero known advisories after dependency updates.
+- The backend uses HTTPS in deployment, OAuth CSRF state, one-time codes, hashed device tokens, rate limiting, Helmet, schema validation, bounded request bodies, encrypted refresh tokens, and redacted logs.
+- Android WebView has file/content access disabled, mixed content blocked, Safe Browsing enabled, and no native JavaScript bridge.
+- Distributed Gemini API keys remain extractable from an APK; production should use an authenticated proxy and quotas.
 
-### Security Posture
-* **Encrypted Storage**: Secrets (Gemini API Key, user emails) are stored in `EncryptedSharedPreferences` backed by the Android Keystore (`AES256-GCM`).
-* **Git Hygiene**: `local.properties` is strictly ignored in `.gitignore`. A sanitized `local.properties.example` is provided for reviewers.
-* **Backup Exclusions**: `xml/data_extraction_rules.xml` excludes database and preference files from cloud backups, safeguarding user privacy.
-* **Human-in-the-Loop (HITL)**: Outbound emails and destructive operations cannot execute automatically. Execution suspends until the user confirms.
+## Verification and trade-offs
 
-### Failure Handling & Resilience
-* **API Rate Limiting (HTTP 429)**: Handled gracefully with user-facing notification and retry backoff.
-* **Offline / No Key Fallback**: If a reviewer launches the app without configuring an API key, the app does **not** crash. A built-in local deterministic fallback parser handles scheduling, memory, and basic tool demonstration gracefully, guiding the user to enter their key in Settings.
-* **Network & Parsing Failures**: Web scraping timeouts are caught; malformed HTML is sanitized and truncated to prevent context window overflow.
-
----
-
-## 7. Important Engineering Decisions & Trade-Offs
-
-1. **Structured JSON vs. Native Tool SDK**:
-   * *Decision*: Used explicit JSON schema parsing with Gemini REST/SDK prompts.
-   * *Trade-off*: Slightly more parsing logic in Kotlin, but delivers complete deterministic cross-version stability, offline replayability, and transparent debug visibility in the ReAct timeline.
-2. **WorkManager vs. Foreground Service**:
-   * *Decision*: Chose `WorkManager` for scheduled recurring tasks instead of a continuous Foreground Service.
-   * *Trade-off*: Tasks have slight window variance ($\pm 10$ minutes) due to Android battery optimization, but avoid draining the user's battery or showing an annoying persistent notification icon 24/7.
-3. **Offscreen Scraping vs. Full Live WebView Rendering**:
-   * *Decision*: Implemented an optimized HTTP DOM scraping engine with headless text and link extraction.
-   * *Trade-off*: Reduces memory consumption from ~85MB (full Chromium WebView instance) to <4MB (OkHttp text stream) while still extracting clean body text and headlines.
+- Android `./gradlew test` and `./gradlew assembleDebug` passed after browser integration.
+- Backend `npm test` (5 tests), `npm run prisma:generate`, and `npm audit` passed. The commands ran on Node 20.15, below the declared Node 22.12 minimum; use Node 22.12+ to run the backend.
+- Docker and an attached ADB device were unavailable for this run, so database migrations, server startup, browser device interaction, live OAuth, and real scheduled delivery were not tested.
+- WorkManager gives durable local execution with flexible timing. The backend supports one-shot emails and durable jobs but not recurring schedule rules yet.
+- The separate HTTP fetcher and the controlled browser cover simple extraction and stateful agent interaction; their trust boundaries are different.

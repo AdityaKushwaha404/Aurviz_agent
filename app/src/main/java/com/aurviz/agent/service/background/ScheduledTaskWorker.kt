@@ -3,6 +3,7 @@ package com.aurviz.agent.service.background
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -32,20 +33,25 @@ class ScheduledTaskWorker(
             schedulerRepo.updateTaskStatus(
                 id = taskId,
                 lastExecutionEpoch = System.currentTimeMillis(),
-                status = "Executed: ${resultSummary.take(100)}"
+                status = resultSummary.take(300)
             )
 
             // Notify user
             showNotification(taskTitle, resultSummary)
 
-            Result.success()
-        } catch (e: Exception) {
-            e.printStackTrace()
+            val scheduledTask = schedulerRepo.getTaskById(taskId)
+            // Failure permanently stops periodic work. Keep recurring tasks scheduled despite one failed run.
+            if (resultSummary.startsWith("Success:") || scheduledTask?.isRecurring == true) {
+                Result.success()
+            } else {
+                Result.failure()
+            }
+        } catch (_: Exception) {
             val app = applicationContext as? AurvizApp
             app?.taskSchedulerRepository?.updateTaskStatus(
                 id = taskId,
                 lastExecutionEpoch = System.currentTimeMillis(),
-                status = "Failed: ${e.message}"
+                status = "Execution error; WorkManager will retry if permitted."
             )
             Result.retry()
         }
@@ -65,16 +71,31 @@ class ScheduledTaskWorker(
             notificationManager.createNotificationChannel(channel)
         }
 
+        val openAppIntent = applicationContext.packageManager
+            .getLaunchIntentForPackage(applicationContext.packageName)
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        } else {
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            applicationContext,
+            (System.currentTimeMillis() % 10000).toInt(),
+            openAppIntent,
+            flags
+        )
+
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
             .setAutoCancel(true)
             .build()
 
-        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
+        notificationManager.notify((System.currentTimeMillis() % 100000).toInt(), notification)
     }
 
     companion object {
