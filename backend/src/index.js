@@ -4,7 +4,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { rateLimit } from "express-rate-limit";
 import { Pool } from "pg";
-import PgBoss from "pg-boss";
+import { PgBoss } from "pg-boss";
 import { Prisma } from "@prisma/client";
 import { env } from "./config/env.js";
 import { prisma } from "./database/prisma.js";
