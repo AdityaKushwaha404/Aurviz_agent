@@ -2,7 +2,9 @@ import { prisma } from "../database/prisma.js";
 import { normalizeError } from "../utils/validation.js";
 import { createGmailClient } from "./google.js";
 
-export const EMAIL_QUEUE = "aurviz-send-email";
+import { EMAIL_QUEUE } from "./email-queue.js";
+
+export { EMAIL_QUEUE };
 
 function sameRequest(email, accountId, input, ignoreScheduledAt) {
   return email.accountId === accountId &&

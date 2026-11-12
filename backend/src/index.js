@@ -10,7 +10,7 @@ import { env } from "./config/env.js";
 import { prisma } from "./database/prisma.js";
 import authRoutes from "./routes/auth.js";
 import emailRoutes from "./routes/emails.js";
-import { startEmailWorker } from "./scheduler/worker.js";
+import { ensureEmailQueue, startEmailWorker } from "./scheduler/worker.js";
 
 const app = express();
 app.disable("x-powered-by");
@@ -97,6 +97,9 @@ async function main() {
 
   if (env.role === "all" || env.role === "worker") {
     await startEmailWorker(boss);
+  } else {
+    // API-only deployments also provision the durable queue before accepting requests.
+    await ensureEmailQueue(boss);
   }
   if (env.role === "all" || env.role === "api") {
     app.locals.boss = boss;
