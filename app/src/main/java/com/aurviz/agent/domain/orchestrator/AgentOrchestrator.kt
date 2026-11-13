@@ -324,6 +324,21 @@ class AgentOrchestrator(
                             "Tool '${call.toolName}' is not available."
                         )
 
+                    if (tool.requiresForeground) {
+                        // Browser tools need a visible screen; never pop UI open from a background run.
+                        history += modelFunctionCallTurn(response, call)
+                        history += GeminiConversationTurn(
+                            "user",
+                            functionResponse = GeminiFunctionResponse(
+                                call.toolName,
+                                "Not available in a background run: '${call.toolName}' needs the app on screen. " +
+                                    "Use email, memory or other non-visual tools, or say what you could not do.",
+                                call.id
+                            )
+                        )
+                        continue
+                    }
+
                     if (tool.isSensitive) {
                         // Never execute a human-in-the-loop action from the background.
                         blockedSensitiveTool = call.toolName

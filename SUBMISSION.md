@@ -15,12 +15,12 @@
 
 | Area | Status |
 |---|---|
-| Functional requirements FR-01 to FR-25 | Implemented. Device-verified, except speech input in the latest build (see the Test Report) |
+| Functional requirements FR-01 to FR-28 | Implemented. Device-verified, except speech input in the latest build (see the Test Report) |
 | Non-functional requirements NFR-01 to NFR-11 | Implemented and evidenced |
-| Android unit tests | 83 pass |
-| Backend tests | 14 pass |
+| Android unit tests | 86 pass |
+| Backend tests | 18 pass |
 | On-device performance | 30 samples: median 1.6 s end-to-end, about 0.1 s on-device overhead |
-| Evaluation without any credentials | Built-in demo mailbox |
+| Evaluation without any credentials | Shared test inbox (one tap, real Gmail, self-send only) and an offline demo mailbox with a live mailbox viewer |
 
 ## The three engineering concerns, kept separate
 
@@ -49,6 +49,6 @@ Gemini cannot wake the app, so scheduled tasks are persisted in Room and registe
 
 - WorkManager is not an exact scheduler; Android may delay tasks.
 - `gmail.readonly` is a Google restricted scope. Real accounts must be test users until Google verifies the app; the demo mailbox removes this barrier for evaluation.
-- Not verified on the device: speech input in the latest build, offline Retry (unit-tested), and the 09:00 trigger firing unattended.
+- Not verified on the device: speech input in the latest build, offline Retry (unit-tested), the 09:00 trigger firing unattended, and the shared test inbox end to end (it needs the latest backend version deployed; its failure path is verified and it falls back to the demo mailbox).
 - Memory search is lexical, recurrence is daily or one-time, and the browser is a controlled WebView rather than a hardened sandbox.
 - A Gemini key bundled into an APK can be extracted; production should proxy Gemini through the backend.

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import com.aurviz.agent.core.security.SecurePreferences
+import com.aurviz.agent.data.mail.MailSourceManager
 import com.aurviz.agent.data.remote.BackendAuthManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +18,37 @@ import com.aurviz.agent.domain.metrics.MetricSummary
 class SettingsViewModel(
     private val securePreferences: SecurePreferences,
     private val backendAuthManager: BackendAuthManager,
-    private val performanceRecorder: RoomPerformanceRecorder? = null
+    private val performanceRecorder: RoomPerformanceRecorder? = null,
+    private val mailSourceManager: MailSourceManager? = null
 ) : ViewModel() {
+
+    val mailSource: StateFlow<String> = securePreferences.mailSource
+    private val _mailBusy = MutableStateFlow(false)
+    val mailBusy: StateFlow<Boolean> = _mailBusy.asStateFlow()
+    private val _mailMessage = MutableStateFlow<String?>(null)
+    val mailMessage: StateFlow<String?> = _mailMessage.asStateFlow()
+
+    fun selectMailSource(source: String) {
+        if (_mailBusy.value) return
+        _mailMessage.value = null
+        viewModelScope.launch {
+            _mailBusy.value = true
+            try {
+                when (source) {
+                    SecurePreferences.SOURCE_SHARED ->
+                        mailSourceManager?.useShared()?.onFailure {
+                            _mailMessage.value = (it.message ?: "The shared test inbox is not available.") +
+                                " You can switch to the demo mailbox instead."
+                        }
+                    SecurePreferences.SOURCE_DEMO -> mailSourceManager?.useDemo()
+                    else -> mailSourceManager?.useOwn()
+                }
+            } finally {
+                _mailBusy.value = false
+            }
+        }
+    }
+
 
     /** Measured on-device latency (median / p95) per metric, newest 1000 samples. */
     val performance: StateFlow<List<MetricSummary>> =
@@ -44,11 +74,9 @@ class SettingsViewModel(
     }
 
     val themeMode: StateFlow<String> = securePreferences.themeMode
-    val demoMode: StateFlow<Boolean> = securePreferences.demoMode
     val usesBuiltInKey: Boolean get() = securePreferences.hasBuiltInGeminiKey
 
     fun setThemeMode(mode: String) = securePreferences.setThemeMode(mode)
-    fun setDemoMode(enabled: Boolean) = securePreferences.setDemoMode(enabled)
 
     private val _apiKey = MutableStateFlow(securePreferences.getUserGeminiApiKey())
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()

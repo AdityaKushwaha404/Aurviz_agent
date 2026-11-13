@@ -41,7 +41,7 @@ Gemini cannot wake the app. A scheduled task is persisted in Room and registered
 - **Evaluator:** a reviewer who must be able to test every feature without receiving anyone's credentials (see [Evaluator Guide](EVALUATOR_GUIDE.md)).
 
 ### 2.2 Operating environment
-Android 8.0 (API 26) or newer, internet access, a Gemini API key (bundled at build time or entered in Settings). Gmail features need a connected Google account **or** the demo mailbox.
+Android 8.0 (API 26) or newer, internet access, a Gemini API key (bundled at build time or entered in Settings). Mail features work with the shared test inbox, the demo mailbox or the user's own Google account.
 
 ### 2.3 Constraints
 - WorkManager periodic work is durable but not exact to the minute (Doze and battery policy apply).
@@ -90,6 +90,9 @@ Priority: **P0** must have, **P1** should have, **P2** nice to have.
 | FR-22 | **AI on web pages.** Summarize, extract key facts, explain or ask about the open page | P1 | Tapping Summarize returns to chat with a summary of that page | Device |
 | FR-23 | **Theme.** Choose System, Light or Dark | P1 | The choice applies immediately and persists | Device |
 | FR-24 | **Onboarding and shortcuts.** First-run walkthrough, launcher shortcuts, share text to Aurviz | P2 | Onboarding appears once; long-pressing the icon lists shortcuts; sharing text opens a summary | Device |
+| FR-26 | **Shared test inbox.** Real Gmail for reviewers with one tap and no credentials | P0 | Choosing it connects without any sign-in; search, read and draft work; mail can only be sent to the test account itself; it cannot be disconnected | `shared-account.test.js`; device (pending server deploy) |
+| FR-27 | **Mailbox viewer.** See the active mailbox's Inbox, Sent and Drafts, read messages, and watch them update | P0 | The viewer lists messages for all three sources; a draft or sent message saved by the agent appears without leaving the screen; demo can be reset | `MailGatewayTest`; device |
+| FR-28 | **Mailbox selection.** Choose Shared test inbox, Demo mailbox or My own Gmail at any time | P0 | The selection persists, the header badge reflects it, and the agent uses the selected mailbox immediately | `MailGatewayTest`; device |
 | FR-25 | **Settings and permissions.** Manage key, default recipient, spoken replies, Gmail and system permissions | P1 | All settings persist across restarts | Device |
 
 ---
@@ -108,6 +111,7 @@ Priority: **P0** must have, **P1** should have, **P2** nice to have.
 | NFR-08 | Usability | Intuitive interface | One-tap mic, live "what the agent is doing" status, tool timeline, approval dialogs, onboarding, dark mode |
 | NFR-09 | Resource efficiency | Low battery and memory impact | WorkManager only (no persistent service), network constraints, bounded tables and context |
 | NFR-10 | Compatibility | Wide device support | minSdk 26, adaptive and themed icon, runtime permissions, tested on Android 16 |
+| NFR-12 | Safe shared access | A reviewer-facing account must not be abusable | Server-enforced: self-send only, no disconnect, rate-limited short sessions; throwaway account |
 | NFR-11 | Privacy | Minimise data exposure | Page and text attachments are sent only when the user triggers an action; demo mode never contacts Gmail |
 
 ---

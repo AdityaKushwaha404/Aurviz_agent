@@ -7,6 +7,9 @@ interface AgentTool {
     val description: String
     val isSensitive: Boolean get() = false
 
+    /** True for tools that need a visible screen (for example the browser), so they cannot run in the background. */
+    val requiresForeground: Boolean get() = false
+
     /**
      * Executes the tool with the provided arguments.
      * If [isSensitive] is true and not yet confirmed, returns a ToolExecutionResponse with [sensitiveActionRequired].

@@ -9,24 +9,42 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android%208%2B-3DDC84?logo=android&logoColor=white">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white">
   <img alt="AI" src="https://img.shields.io/badge/AI-Gemini%20function%20calling-4285F4?logo=google&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-83%20Android%20%2B%2014%20backend%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-86%20Android%20%2B%2018%20backend%20passing-brightgreen">
 </p>
 
 Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instructions, remembers your preferences, plans multi-step work, **uses tools** (email, memory, scheduler, web browser) and **executes tasks**, including scheduled ones that run while the app is closed.
 
-> **Evaluating this project?** You need no credentials. Install the APK, choose **Start with the demo mailbox**, and follow the ten-minute script in the **[Evaluator Guide](docs/EVALUATOR_GUIDE.md)**.
+> **Evaluating this project?** You need no credentials. Install the APK and tap **Use the shared test inbox** (real Gmail on a throwaway account, one tap, no password), or choose the offline **demo mailbox**. Then follow the ten-minute script in the **[Evaluator Guide](docs/EVALUATOR_GUIDE.md)**.
 
 ## What it can do
 
 | | |
 |---|---|
 | **Understand** | Voice and text commands. Gemini decides which tool to use and breaks complex requests into steps |
-| **Email** | Search, read and summarize Gmail; save drafts; send only after you approve To, Subject and Body in an editable dialog |
+| **Email** | Search, read and summarize mail; save drafts; send only after you approve To, Subject and Body in an editable dialog. A built-in **mailbox viewer** shows Inbox, Sent and Drafts and updates live |
+| **Three mailboxes** | **Shared test inbox** (real Gmail, no credentials, self-send only), **Demo mailbox** (offline sample data you can view and reset), or **your own Gmail** (Google sign-in) |
 | **Remember** | Saves preferences ("I prefer formal emails") and applies them to later answers. View, edit and delete memories |
 | **Schedule** | "Every morning at 9, summarize my inbox" runs in the background with retries, pause and resume, notifications and a full history |
 | **Browse** | A controlled in-app browser with search, find in page, reader view, bookmarks, and AI actions that summarize or answer questions about the open page |
 | **Stay safe** | OAuth (no passwords), encrypted tokens, approval before any send, background runs can never send |
 | **Explain failures** | Plain-language errors with a next step and a Try again button |
+
+## Screenshots
+
+<table>
+<tr>
+<td align="center"><img src="docs/screenshots/19-onboarding-mailbox-choice.png" width="165"><br><sub>Choose a mailbox</sub></td>
+<td align="center"><img src="docs/screenshots/02-chat-email-summary.png" width="165"><br><sub>Search, read, summarize</sub></td>
+<td align="center"><img src="docs/screenshots/03-send-approval.png" width="165"><br><sub>Approval before sending</sub></td>
+<td align="center"><img src="docs/screenshots/07-mailbox-inbox.png" width="165"><br><sub>Mailbox viewer</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/06-mailbox-drafts.png" width="165"><br><sub>Drafts update live</sub></td>
+<td align="center"><img src="docs/screenshots/14-task-history.png" width="165"><br><sub>Readable task history</sub></td>
+<td align="center"><img src="docs/screenshots/11-browser-ai-actions.png" width="165"><br><sub>Browser with AI actions</sub></td>
+<td align="center"><img src="docs/screenshots/15-chat-dark.png" width="165"><br><sub>Dark theme</sub></td>
+</tr>
+</table>
 
 ## How it works
 
@@ -36,7 +54,7 @@ flowchart LR
     A -- reasoning --> G[(Gemini)]
     A -- executes --> T[Tools: email, memory, scheduler, browser]
     T --> M{Mail}
-    M -- real account --> B[Backend + Gmail API]
+    M -- shared test inbox / own Gmail --> B[Backend + Gmail API]
     M -- demo --> D[Sample mailbox]
     S[WorkManager] -- wakes later --> A
 ```
@@ -55,8 +73,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Run the tests:
 ```sh
-./gradlew app:testDebugUnitTest     # 83 Android tests
-cd backend && npm ci && npm test    # 14 backend tests
+./gradlew app:testDebugUnitTest     # 86 Android tests
+cd backend && npm ci && npm test    # 18 backend tests
 ```
 
 ## Documentation
@@ -90,7 +108,7 @@ docs/                    Documentation and logo
 ## Known limitations
 
 - WorkManager is durable but not exact to the minute; Android may delay tasks.
-- `gmail.readonly` is a Google restricted scope: real accounts must be test users until the app is verified. The demo mailbox avoids this for evaluation.
+- `gmail.readonly` is a Google restricted scope: your own Gmail must be an OAuth test user until the app is verified. The shared test inbox and the demo mailbox avoid this for evaluation.
 - Memory search matches words, not meaning.
 - The controlled browser is not a hardened sandbox; avoid sign-in or payment pages.
 - A Gemini key bundled into an APK can be extracted; production should proxy Gemini through the backend.

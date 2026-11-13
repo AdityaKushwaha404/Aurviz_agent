@@ -19,6 +19,8 @@ class BrowserAgentTool(
     override val isSensitive: Boolean
         get() = name == "click_element" || name == "enter_text"
 
+    override val requiresForeground: Boolean = true
+
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
         val validated = validate(arguments)
             ?: return failure("The browser command has missing or invalid parameters.")

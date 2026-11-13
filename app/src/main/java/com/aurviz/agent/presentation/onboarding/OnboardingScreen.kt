@@ -44,7 +44,11 @@ import kotlinx.coroutines.launch
 /** First-run walkthrough. The last page lets evaluators start instantly with the demo mailbox. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun OnboardingScreen(onFinish: (useDemoMailbox: Boolean) -> Unit) {
+fun OnboardingScreen(
+    onFinish: (source: String) -> Unit,
+    connecting: Boolean = false,
+    message: String? = null
+) {
     val pages = 3
     val pagerState = rememberPagerState(pageCount = { pages })
     val scope = rememberCoroutineScope()
@@ -61,7 +65,7 @@ fun OnboardingScreen(onFinish: (useDemoMailbox: Boolean) -> Unit) {
                 when (page) {
                     0 -> HeroPage()
                     1 -> FeaturesPage()
-                    else -> StartPage(onFinish)
+                    else -> StartPage(onFinish, connecting, message)
                 }
             }
 
@@ -149,41 +153,74 @@ private fun FeatureRow(icon: ImageVector, title: String, text: String) {
 }
 
 @Composable
-private fun StartPage(onFinish: (Boolean) -> Unit) {
+private fun StartPage(onFinish: (String) -> Unit, connecting: Boolean, message: String?) {
     Column(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Choose how to start", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Choose a mailbox", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "No account is needed to explore. You can connect your own Gmail any time in Settings.",
+            "Pick how Aurviz reads and sends email. You can change this later in Settings, Mailbox.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
+
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.primaryContainer,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text("Demo mailbox", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Shared test inbox", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.primary) {
+                        Text(
+                            "Recommended",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "A sample inbox with interview invites, assignment replies and alerts. Try every email feature. " +
-                        "Nothing is ever sent to a real address.",
+                    "Real Gmail on a test account. No sign-in, no password. It can only send mail to itself.",
                     style = MaterialTheme.typography.bodyMedium
                 )
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(onClick = { onFinish(true) }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                    Text("Start with the demo mailbox")
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = { onFinish("SHARED") },
+                    enabled = !connecting,
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    if (connecting) {
+                        androidx.compose.material3.CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Connecting…")
+                    } else Text("Use the shared test inbox")
                 }
             }
         }
-        Spacer(modifier = Modifier.height(14.dp))
-        OutlinedButton(onClick = { onFinish(false) }, modifier = Modifier.fillMaxWidth().height(50.dp)) {
-            Text("I'll connect my Gmail later")
+        message?.let {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         }
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = { onFinish("DEMO") },
+            enabled = !connecting,
+            modifier = Modifier.fillMaxWidth().height(50.dp)
+        ) { Text("Use the offline demo mailbox") }
+        Spacer(modifier = Modifier.height(8.dp))
+        TextButton(
+            onClick = { onFinish("OWN") },
+            enabled = !connecting,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("I'll connect my own Gmail later") }
     }
 }

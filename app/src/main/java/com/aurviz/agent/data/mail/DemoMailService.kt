@@ -24,6 +24,12 @@ data class DemoEmail(
     val snippet: String get() = body.replace(Regex("\\s+"), " ").take(140)
 }
 
+/** Persists the demo mailbox's user-created messages (drafts and sent mail). */
+interface DemoMailStore {
+    fun load(): List<DemoEmail>
+    fun save(emails: List<DemoEmail>)
+}
+
 /**
  * Built-in sample mailbox for evaluation. Behaves like Gmail for the operations Aurviz
  * uses (search with Gmail-style operators, read, draft, send) but never touches a real
@@ -31,10 +37,21 @@ data class DemoEmail(
  */
 class DemoMailService(
     private val clock: () -> Long = System::currentTimeMillis,
-    seed: List<DemoEmail> = SAMPLE_INBOX
+    private val seed: List<DemoEmail> = SAMPLE_INBOX,
+    private val store: DemoMailStore? = null
 ) : MailService {
 
-    private val mailbox = seed.toMutableList()
+    /** Sample inbox plus whatever the user created earlier (drafts and sent mail survive restarts). */
+    private val mailbox = (seed + (store?.load().orEmpty())).toMutableList()
+
+    /** Removes drafts and sent mail and restores the original sample inbox. */
+    fun reset() {
+        mailbox.clear()
+        mailbox += seed
+        store?.save(emptyList())
+    }
+
+    private fun persist() = store?.save(mailbox.filter { it.folder != "inbox" })
     override val isDemo: Boolean = true
 
     override fun isConnected() = true
@@ -57,13 +74,17 @@ class DemoMailService(
     override suspend fun createDraft(recipient: String, subject: String, body: String): JSONObject {
         val draft = outgoing("drafts", recipient, subject, body)
         mailbox += draft
+        persist()
         return JSONObject().put("id", draft.id).put("demo", true)
     }
 
     override suspend fun send(recipient: String, subject: String, body: String, idempotencyKey: String): JSONObject {
         // Idempotent like the real backend: the same key never records two messages.
         val id = "demo-sent-" + idempotencyKey.filter { it.isLetterOrDigit() }.take(16)
-        if (mailbox.none { it.id == id }) mailbox += outgoing("sent", recipient, subject, body).copy(id = id)
+        if (mailbox.none { it.id == id }) {
+            mailbox += outgoing("sent", recipient, subject, body).copy(id = id)
+            persist()
+        }
         return JSONObject().put("id", id).put("demo", true)
     }
 

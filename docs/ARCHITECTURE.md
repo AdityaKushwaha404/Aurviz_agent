@@ -12,7 +12,8 @@ flowchart LR
     Backend -- Gmail API --> Gmail[(Gmail)]
     App -- WorkManager --> OS[Android OS<br/>background execution]
     App -- HTTPS pages --> Web[(Public web)]
-    App -. demo mode .-> Demo[Built-in sample mailbox]
+    App -. demo mailbox .-> Demo[Built-in sample mailbox]
+    Backend -. shared test inbox .-> Shared[(Throwaway test Gmail<br/>self-send only)]
 ```
 
 ## 2. Three separate concerns
@@ -143,19 +144,50 @@ Reliability rules:
 - Pause cancels the WorkManager job but keeps the task; resume re-registers it. A run that was already in flight never silently resumes a paused task.
 - Every attempt is stored in `task_executions` and shown in Tasks, History. Raw errors are translated by `ExecutionLogFormatter` into a plain explanation with a next step.
 
-## 7. Mail: real account or demo
+## 7. Mail: three mailboxes, one interface
+
+The Gmail tools only know the `MailService` interface. A `MailGateway` chooses the implementation on every call, so switching mailbox takes effect instantly.
 
 ```mermaid
 flowchart LR
-    T[Gmail tools] --> G{MailGateway}
-    G -- Demo off --> B[BackendMailService]
-    G -- Demo on --> D[DemoMailService]
+    T[Gmail tools: search, read, draft, send] --> G{MailGateway}
+    G -- Shared test inbox or My own Gmail --> B[BackendMailService]
+    G -- Demo mailbox --> D[DemoMailService]
     B --> API[Aurviz backend REST]
     API --> GM[(Gmail API)]
-    D --> S[(In-memory sample mailbox)]
+    D --> S[(Sample inbox + drafts + sent<br/>persisted on the phone)]
+    V[Mailbox viewer screen] --> G
+    G -- revision signal --> V
 ```
 
-`MailGateway` picks the implementation on every call, so the Demo switch takes effect instantly. The demo service understands the same Gmail-style operators (`subject:`, `from:`, `is:unread`, `newer_than:3d`, quoted phrases), keeps drafts and sent mail in their own folders, and makes `send` idempotent like the real backend. Nothing in demo mode contacts Gmail.
+| Source | Where the mail lives | Credentials | Notes |
+|---|---|---|---|
+| **Shared test inbox** (default) | A throwaway Gmail account; its Google grant is held by the backend | None for the reviewer | Restricted: can only send to itself, cannot be disconnected, short sessions |
+| **Demo mailbox** | App-private storage on the phone | None | Ten sample emails; drafts and sent mail persist; **Reset** restores the sample |
+| **My own Gmail** | The user's Google account | Google sign-in (OAuth) | Account must be an OAuth test user until the app is verified |
+
+### The shared test inbox flow
+
+```mermaid
+sequenceDiagram
+    participant R as Reviewer
+    participant App
+    participant Backend
+    participant Gmail
+    R->>App: tap "Use the shared test inbox"
+    App->>Backend: POST /api/v1/auth/shared-test (no credentials)
+    Backend->>Backend: look up the connected test account, create a short-lived session
+    Backend-->>App: opaque session token (only its hash is stored)
+    App->>Backend: GET /api/v1/gmail/messages?q=...
+    Backend->>Gmail: search using the server-held refresh token
+    Gmail-->>Backend: messages
+    Backend-->>App: results
+```
+
+No password or Google token is ever on the phone or in the app package. The server enforces the safeguards, so they cannot be bypassed by a modified app: `POST /emails/send` and `/emails/scheduled` reject any recipient other than the test account itself (403), `DELETE /auth/google` is refused for that account, session creation is rate limited (40 per hour per client) and sessions expire after 72 hours. If the server is unreachable the app offers the demo mailbox instead.
+
+### The mailbox viewer
+One screen shows whichever mailbox is active with **Inbox, Sent and Drafts** tabs. It reads through the same `MailGateway`, so it works for all three sources. When Aurviz saves a draft or sends mail, the gateway raises a `revision` signal and the viewer reloads, so the screen **updates live**. Opening a message offers "Summarize with Aurviz", which passes the message to the agent as untrusted context.
 
 Real accounts use OAuth through the backend:
 
@@ -193,7 +225,8 @@ Safety: HTTPS only; private, local and link-local addresses are rejected (DNS is
 | `performance_samples` | Room | latency samples (1000 rows kept) |
 | Chat | JSON file | last 100 messages |
 | Secrets | EncryptedSharedPreferences | Gemini key, session token |
-| Preferences | SharedPreferences | theme, demo mode, onboarding |
+| Preferences | SharedPreferences | theme, mailbox source, onboarding |
+| Demo mailbox | SharedPreferences (JSON) | user-created drafts and sent mail |
 | Server | PostgreSQL + Prisma, pg-boss | accounts (encrypted token), sessions (hashed), scheduled emails, history, job queue |
 
 Database upgrades use explicit migrations (`MIGRATION_1_2`), so memories and tasks are never wiped on update.
@@ -205,6 +238,7 @@ Database upgrades use explicit migrations (`MIGRATION_1_2`), so memories and tas
 | Stolen credentials | No passwords; OAuth with server-held refresh token (AES-256-GCM) |
 | Token on device | Keystore-backed encrypted preferences, excluded from backup |
 | Unwanted sending | Approval dialog for every send; background runs cannot send |
+| Abuse of the shared test inbox | Server-enforced self-send only, no disconnect, rate-limited short sessions, throwaway account |
 | Header injection in mail | Recipient and subject reject line breaks (app and server) |
 | Replay or double send | Idempotency key per request; unique database constraint |
 | Abuse of the API | Rate limiting, Helmet headers, 32 KB body limit, schema validation |
@@ -232,3 +266,4 @@ Swapping the mail provider means implementing `MailService` once; the tools and 
 | WorkManager for scheduling | Persistent, battery-aware | Not exact to the minute |
 | Lexical memory search | Simple, fast, private | Not semantic; a vector index is a possible upgrade |
 | Demo mailbox | Lets anyone evaluate without credentials | Sample data only |
+| Shared test inbox | Real Gmail for reviewers with one tap | Needs the server-held grant to stay valid (an OAuth app in Testing status expires refresh tokens after 7 days, so publish the consent screen "In production") |

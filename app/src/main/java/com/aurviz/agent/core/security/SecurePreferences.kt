@@ -97,15 +97,32 @@ class SecurePreferences(context: Context) {
         _themeMode.value = mode
     }
 
-    private val _demoMode = MutableStateFlow(preferences.getBoolean(KEY_DEMO_MODE, false))
-    /** When true the Gmail tools use the built-in sample mailbox instead of a real account. */
+    /** Where mail comes from: SHARED (shared test inbox), DEMO (sample mailbox) or OWN (the user's Gmail). */
+    private val _mailSource = MutableStateFlow(initialMailSource())
+    val mailSource: StateFlow<String> = _mailSource.asStateFlow()
+
+    private val _demoMode = MutableStateFlow(_mailSource.value == SOURCE_DEMO)
+    /** True while the built-in sample mailbox is selected. */
     val demoMode: StateFlow<Boolean> = _demoMode.asStateFlow()
 
-    fun isDemoMode(): Boolean = _demoMode.value
+    fun isDemoMode(): Boolean = _mailSource.value == SOURCE_DEMO
+    fun isSharedSource(): Boolean = _mailSource.value == SOURCE_SHARED
 
-    fun setDemoMode(enabled: Boolean) {
-        preferences.edit().putBoolean(KEY_DEMO_MODE, enabled).apply()
-        _demoMode.value = enabled
+    fun setMailSource(source: String) {
+        require(source in setOf(SOURCE_SHARED, SOURCE_DEMO, SOURCE_OWN))
+        preferences.edit().putString(KEY_MAIL_SOURCE, source).apply()
+        _mailSource.value = source
+        _demoMode.value = source == SOURCE_DEMO
+    }
+
+    private fun initialMailSource(): String {
+        preferences.getString(KEY_MAIL_SOURCE, null)?.let { return it }
+        // Older builds only stored a demo flag. A fresh install defaults to the shared test inbox.
+        return when {
+            preferences.getBoolean(KEY_DEMO_MODE, false) -> SOURCE_DEMO
+            preferences.contains(KEY_DEMO_MODE) -> SOURCE_OWN
+            else -> SOURCE_SHARED
+        }
     }
 
     fun isOnboardingDone(): Boolean = preferences.getBoolean(KEY_ONBOARDING_DONE, false)
@@ -115,6 +132,10 @@ class SecurePreferences(context: Context) {
     }
 
     companion object {
+        const val SOURCE_SHARED = "SHARED"
+        const val SOURCE_DEMO = "DEMO"
+        const val SOURCE_OWN = "OWN"
+        private const val KEY_MAIL_SOURCE = "mail_source"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_DEMO_MODE = "demo_mode"
         private const val KEY_ONBOARDING_DONE = "onboarding_done"

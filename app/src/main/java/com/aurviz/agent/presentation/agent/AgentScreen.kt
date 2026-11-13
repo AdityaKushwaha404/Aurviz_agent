@@ -89,7 +89,8 @@ private val STARTER_PROMPTS = listOf(
 fun AgentScreen(
     viewModel: AgentViewModel,
     modifier: Modifier = Modifier,
-    onOpenBrowser: () -> Unit = {}
+    onOpenBrowser: () -> Unit = {},
+    onOpenMailbox: () -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
@@ -98,7 +99,7 @@ fun AgentScreen(
     val recognizedText by viewModel.recognizedText.collectAsState()
     val rmsLevel by viewModel.rmsLevel.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
-    val demoMode by viewModel.demoMode.collectAsState()
+    val mailSource by viewModel.mailSource.collectAsState()
 
     var textInput by rememberSaveable { mutableStateOf("") }
     var showClearChatConfirmation by remember { mutableStateOf(false) }
@@ -153,16 +154,19 @@ fun AgentScreen(
                             )
                         }
                     }
-                    if (demoMode) {
+                    if (mailSource != "OWN") {
                         Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                             Text(
-                                "DEMO",
+                                if (mailSource == "DEMO") "DEMO" else "TEST INBOX",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
+                    }
+                    IconButton(onClick = onOpenMailbox) {
+                        Icon(Icons.Default.Inbox, contentDescription = "Open mailbox", tint = MaterialTheme.colorScheme.primary)
                     }
                     IconButton(onClick = onOpenBrowser) {
                         Icon(Icons.Default.Language, contentDescription = "Open browser", tint = MaterialTheme.colorScheme.primary)

@@ -138,5 +138,5 @@ class GmailDraftTool(
 private fun notConnected(tool: String) = ToolExecutionResponse(
     tool,
     isSuccess = false,
-    output = "Gmail is not connected. Ask the user to connect Gmail in Settings, or turn on the demo mailbox there."
+    output = "No mailbox is connected. Ask the user to choose a mailbox in Settings, Mailbox (shared test inbox, demo mailbox or their own Gmail)."
 )

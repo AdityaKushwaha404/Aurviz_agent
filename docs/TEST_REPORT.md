@@ -9,13 +9,13 @@
 
 | Area | Result |
 |---|---|
-| Android unit tests | **83 of 83 pass** |
-| Backend tests | **14 of 14 pass** (Node 22) |
+| Android unit tests | **86 of 86 pass** |
+| Backend tests | **18 of 18 pass** (Node 22) |
 | Device checks | **All listed in section 3 pass** |
 | Build | `assembleDebug` succeeds; CI runs tests and the build on every push |
 | Dependency audit | `npm audit` reports no known vulnerabilities |
 
-Not verified on the device (stated openly): speech input in the latest build, offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link), and the real 09:00 trigger firing unattended overnight.
+Not verified on the device (stated openly): speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); the real 09:00 trigger firing unattended overnight; and the **shared test inbox end to end**, because it needs the latest backend version deployed on the hosting service. Its server rules are unit-tested, and the app's failure path was verified (it reports the server as unreachable and offers the demo mailbox).
 
 ## 2. Automated tests
 
@@ -24,10 +24,11 @@ Not verified on the device (stated openly): speech input in the latest build, of
 | Suite | Tests | What it proves |
 |---|---:|---|
 | `AgentOrchestratorTest` | 8 | Direct answers, conversation persistence, function-call id round-trip, multi-step background runs, sensitive tools never run in the background, approval flow with edited fields |
-| `AgentReliabilityTest` | 9 | Real errors with retry (no generic greeting), step limit never silent, multi-step email workflow, preference injected into the prompt, transient tool failure is retryable, latency recorded, empty model answer retried then reported |
+| `AgentReliabilityTest` | 10 | Real errors with retry (no generic greeting), step limit never silent, multi-step email workflow, preference injected into the prompt, transient tool failure is retryable, latency recorded, empty model answer retried then reported, background runs never use screen-bound tools |
 | `GeminiAgentClientTest` | 11 | Request building, model fallback, error classification, response parsing, thought-signature preservation |
 | `TaskExecutionPolicyTest` | 11 | Success, skip, retry and failure decisions; recurring tasks stay registered; backoff limits |
 | `TimeUtilsTest` | 6 | Natural-language time parsing and next-run delay |
+| `MailGatewayTest` | 2 | Demo drafts and sent mail survive a restart and reset restores the sample; the gateway routes by source and raises a revision signal on every change |
 | `DemoMailServiceTest` | 6 | Gmail-style operators, ordering and caps, read and 404, drafts and sent folders, idempotent send |
 | `ExecutionLogFormatterTest` | 6 | Raw errors become plain language with a next step |
 | `MemoryToolTest` | 4 | Upsert by key, update, delete, ambiguous delete deletes nothing, recall |
@@ -38,17 +39,18 @@ Not verified on the device (stated openly): speech input in the latest build, of
 | `MarkdownParserTest` | 3 | Bold, italic, code, lists, malformed markers |
 | `SchedulerToolTest` | 2 | The model's instruction is stored unchanged; invalid time rejected |
 | `MetricMathTest` | 2 | Percentiles and summary statistics |
-| **Total** | **83** | |
+| **Total** | **86** | |
 
 ### 2.2 Backend (`npm test`)
 
 | Suite | Tests | What it proves |
 |---|---:|---|
+| `shared-account.test.js` | 4 | Shared test inbox is detected case-insensitively; it can only send to itself; it cannot be disconnected; normal accounts are unrestricted |
 | `gmail-inbox.test.js` | 7 | MIME body extraction, HTML-to-text, header lookup, raw draft building and header-injection rejection, Google error mapping, result cap, disconnected-account error |
 | `validation.test.js` | 3 | Recipient, time zone and offset validation; injection rejected |
 | `token-vault.test.js` | 2 | Refresh-token encryption and tamper detection |
 | `worker.test.js` | 2 | Durable queue provisioning |
-| **Total** | **14** | |
+| **Total** | **18** | |
 
 ### 2.3 Database migration
 The `MIGRATION_1_2` SQL was compared against the schema Room generates for the new tables. They match exactly. On a physical device an upgrade install kept the existing chat history and memories.
@@ -76,10 +78,17 @@ Tested on the physical device against the deployed backend.
 | D15 | FR-24 | First launch | Splash animation then onboarding | Pass |
 | D16 | FR-25 | Change the default recipient email and save | New value shown and kept | Pass |
 | D17 | NFR-01 | 30 simple prompts | Median 1.6 s, on-device overhead about 0.1 s | Pass |
+| D18 | FR-27, 28 | Open the mailbox viewer in demo mode | Inbox with unread in bold; tabs for Sent and Drafts | Pass |
+| D19 | FR-27 | Ask Aurviz to draft an email, then to send one, then open the Drafts and Sent tabs | The Drafts and Sent tabs show the new messages | Pass |
+| D20 | FR-28 | Settings, Mailbox: select Demo mailbox | Header badge DEMO; the agent uses the sample inbox | Pass |
+| D21 | FR-26 | Onboarding, tap "Use the shared test inbox" while the new backend is not deployed | A plain message and the demo option instead of a crash | Pass (failure path). Success path pending deploy |
+| D22 | FR-20 | History after a manual run | Plain headline, duration and formatted summary | Pass |
 
 ### Defects found during device testing, and fixed
 | Defect | Fix |
 |---|---|
+| A background task could pop the browser screen open or wait for it | Screen-bound tools are refused in background runs; regression test added |
+| Error text "request failed (404)" shown when the shared inbox is unreachable | Replaced by a plain explanation that offers the demo mailbox |
 | Scheduler rewrote the model's instruction by keyword matching ("summarize" became "draft responses") | Instruction now stored unchanged; regression test added |
 | Background email tasks told the model the wrong account address | Removed the claim; the tools use the connected account |
 | A one-off network error left the Gmail status stuck on screen | Status re-checks on opening Settings; Retry button added |
@@ -116,6 +125,9 @@ Tested on the physical device against the deployed backend.
 | FR-23 Theme | n/a | D14 |
 | FR-24 Onboarding, shortcuts | n/a | D15 |
 | FR-25 Settings | n/a | D16 |
+| FR-26 Shared test inbox | `shared-account.test.js` | D21 (failure path); success path pending deploy |
+| FR-27 Mailbox viewer | `MailGatewayTest` | D18, D19 |
+| FR-28 Mailbox selection | `MailGatewayTest` | D20 |
 | NFR-01 Performance | `MetricMathTest` | D17 |
 | NFR-02 Security | `token-vault.test.js`, `validation.test.js` | D1, D5 |
 | NFR-03 Reliability | `TaskExecutionPolicyTest`, `AgentReliabilityTest` | D9 |
@@ -124,8 +136,8 @@ Tested on the physical device against the deployed backend.
 ## 5. How to reproduce
 
 ```sh
-./gradlew app:testDebugUnitTest        # 83 Android tests
+./gradlew app:testDebugUnitTest        # 86 Android tests
 ./gradlew app:assembleDebug            # build the APK
-cd backend && npm ci && npm test       # 14 backend tests
+cd backend && npm ci && npm test       # 18 backend tests
 ```
 Device checks follow the [Evaluator Guide](EVALUATOR_GUIDE.md).

@@ -182,6 +182,30 @@ class AgentReliabilityTest {
         assertEquals("Summarize my interviews", (last as AgentMessage.ErrorMessage).retryPrompt)
     }
 
+    @Test
+    fun backgroundRunNeverUsesScreenBoundTools() = runBlocking {
+        val browser = object : AgentTool {
+            var runs = 0
+            override val name = "open_url"
+            override val description = "browser"
+            override val requiresForeground = true
+            override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
+                runs++
+                return ToolExecutionResponse(name, true, "opened")
+            }
+        }
+        val client = AgentOrchestratorTest.FakeGeminiClient().apply {
+            responses += GeminiAgentResponse.Success("", ToolExecutionRequest("open_url", mapOf("url" to "https://example.com")))
+            responses += GeminiAgentResponse.Success("Summary without the browser.")
+        }
+        val orchestrator = AgentOrchestrator(client, ToolRegistry(listOf(browser)), memories)
+
+        val result = orchestrator.executeAutonomousTask("Check the news")
+
+        assertEquals(0, browser.runs)
+        assertTrue(result is AutonomousTaskResult.Success)
+    }
+
     private class RecordingPerformance : PerformanceRecorder {
         val samples = mutableListOf<Triple<String, Long, Boolean>>()
         override suspend fun record(metric: String, durationMs: Long, success: Boolean) {

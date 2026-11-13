@@ -10,12 +10,19 @@ Examples:
 - "Every weekday morning at 8, summarize my inbox" (daily recurrence; weekday-only rules are not supported)
 - "Open the BBC News website and tell me the top story"
 
+## Mailboxes
+Choose where Aurviz reads and writes mail in **Settings, Mailbox**:
+- **Shared test inbox** (default): real Gmail on a test account. No sign-in. It can only send to itself.
+- **Demo mailbox**: sample emails on your phone. Works offline.
+- **My own Gmail**: sign in with Google.
+
+Open the **inbox icon** in the chat header (or Settings, View mailbox) to see **Inbox, Sent and Drafts**. Tap a message to read it or have Aurviz summarize it. In the demo mailbox the lists update as soon as Aurviz drafts or sends, and the menu has **Reset demo mailbox**.
+
 ## Email
 - **Search and read:** Aurviz uses Gmail search syntax internally (`from:`, `subject:`, `is:unread`, `newer_than:3d`).
 - **Drafts:** "draft…" or "don't send" always saves a draft.
 - **Sending:** Aurviz shows **To, Subject and Body** in an editable dialog. Nothing is sent until you tap **Send email**. Scheduled tasks can never send.
-- **Connect your account:** Settings, Gmail, Connect Gmail. Sign-in happens on Google's page.
-- **Try without an account:** Settings, Gmail, Demo mailbox.
+- **Your own account:** Settings, Mailbox, My own Gmail, Connect Gmail. Sign-in happens on Google's page.
 
 ## Memory
 Aurviz remembers facts and preferences and uses them in later answers. The **Memory** tab lets you search, add, edit and delete. Deleting asks for confirmation. You can also say "forget my…".
@@ -34,7 +41,7 @@ Tap the globe in the chat header.
 
 ## Settings
 - **Appearance:** System, Light or Dark.
-- **Gmail:** connect, disconnect or use the demo mailbox.
+- **Mailbox:** shared test inbox, demo mailbox or your own Gmail, plus View mailbox.
 - **AI model:** your own Gemini key (optional if the build includes one).
 - **Preferences:** default recipient and spoken replies.
 - **Permissions:** shortcut to Android's permission page.
@@ -47,6 +54,8 @@ Long-press the Aurviz icon for Voice command, Summarize inbox and Tasks. Share t
 | Problem | What to do |
 |---|---|
 | "Could not reach Aurviz" | The hosted server may be waking up. Wait a few seconds and tap Retry |
-| "Gmail inbox access was not granted" | Settings, Disconnect, then Connect Gmail again and approve all permissions |
+| "Gmail inbox access was not granted" | Settings, Mailbox, My own Gmail, Disconnect, then Connect Gmail again and approve all permissions |
+| "The shared test inbox is not reachable" | The server may be waking up. Retry, or choose the demo mailbox |
+| "The shared test inbox can only send mail to itself" | Expected. Use the demo mailbox or your own Gmail to email other people |
 | "Gemini API key is not configured" | Add a key in Settings, AI model |
 | Task ran late | Normal Android battery behaviour; use Run now for immediate execution |

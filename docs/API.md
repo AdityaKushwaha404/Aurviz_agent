@@ -12,6 +12,7 @@ Base URL is the deployed HTTPS service. All `/api/v1` calls except the OAuth exc
 |---|---|---|
 | GET | `/auth/google` | Starts Google OAuth (adds CSRF state), redirects to Google |
 | GET | `/auth/google/callback` | Exchanges the code, stores the encrypted refresh token, redirects to `aurviz://oauth/callback?code=<one-time code>` |
+| POST | `/api/v1/auth/shared-test` | **No credentials.** Starts a short-lived session on the shared test inbox. Rate limited (40 per hour per client). Returns `{ accessToken, expiresAt, email, shared: true }`; 503 if the account is not connected |
 | POST | `/api/v1/auth/exchange` | Body `{ "code": "<one-time code>" }`, returns `{ accessToken, expiresAt }` |
 | GET | `/api/v1/auth/me` | Connected account and expiry |
 | POST | `/api/v1/auth/session/refresh` | Rotates the session token |
@@ -45,6 +46,12 @@ Authorization: Bearer <token>
 | GET | `/api/v1/emails/scheduled/:id` | One email with execution history |
 | PATCH | `/api/v1/emails/scheduled/:id` | Update a pending email (stale queued jobs cannot send the old version) |
 | DELETE | `/api/v1/emails/scheduled/:id` | Cancel a pending email |
+
+## Shared test inbox restrictions
+Sessions created through `/auth/shared-test` belong to a throwaway account that anyone with the app can reach, so the server enforces:
+- `POST /emails/send` and `POST /emails/scheduled` return **403** unless the recipient is the test account itself.
+- `DELETE /auth/google` returns **403** (the grant cannot be revoked from the app). `DELETE /auth/session` ends only that device's session.
+- Sessions expire after `SHARED_SESSION_TTL_HOURS` (default 72).
 
 ## Delivery semantics
 Gmail acceptance and the database commit cannot be atomic. Definite 4xx failures become `FAILED`; quota (429) is retried with backoff; network or 5xx outcomes become `UNKNOWN` and are **never** resent automatically. The same idempotency key never produces two messages.

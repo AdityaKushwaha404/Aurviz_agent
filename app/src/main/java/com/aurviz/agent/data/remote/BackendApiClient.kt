@@ -29,6 +29,29 @@ class BackendApiClient(
         }
     }
 
+    /** Starts a session on the shared test inbox; no credentials are involved. */
+    suspend fun startSharedSession(): SharedSession = withContext(Dispatchers.IO) {
+        val response = execute(
+            Request.Builder()
+                .url("$baseUrl/api/v1/auth/shared-test")
+                .post(ByteArray(0).toRequestBody(null))
+                .build()
+        )
+        SharedSession(
+            accessToken = response.getString("accessToken"),
+            expiresAt = response.getString("expiresAt"),
+            email = response.getString("email")
+        )
+    }
+
+    /** Ends only this device's session, leaving the Google account connected on the server. */
+    suspend fun revokeSession(accessToken: String): Unit = withContext(Dispatchers.IO) {
+        execute(
+            authenticatedRequest("$baseUrl/api/v1/auth/session", accessToken).delete().build(),
+            expectJson = false
+        )
+    }
+
     suspend fun exchangeAuthorizationCode(code: String): BackendSession = withContext(Dispatchers.IO) {
         val payload = JSONObject().put("code", code).toString()
         val response = execute(
@@ -164,6 +187,7 @@ class BackendApiClient(
     }
 
     data class BackendSession(val accessToken: String, val expiresAt: String)
+    data class SharedSession(val accessToken: String, val expiresAt: String, val email: String)
 
     private companion object {
         val JSON = "application/json; charset=utf-8".toMediaType()

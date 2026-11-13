@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.aurviz.agent.presentation.agent.AgentViewModel
+import com.aurviz.agent.presentation.mailbox.MailboxViewModel
 import com.aurviz.agent.presentation.memory.MemoryViewModel
 import com.aurviz.agent.presentation.navigation.AppNavigation
 import com.aurviz.agent.presentation.settings.SettingsViewModel
@@ -26,6 +27,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -59,8 +62,10 @@ class MainActivity : ComponentActivity() {
         val settingsViewModel = SettingsViewModel(
             securePreferences = app.securePreferences,
             backendAuthManager = backendAuthManager,
-            performanceRecorder = app.performanceRecorder
+            performanceRecorder = app.performanceRecorder,
+            mailSourceManager = app.mailSourceManager
         )
+        val mailboxViewModel = MailboxViewModel(app.mailService, app.securePreferences)
 
         setContent {
             val themeMode by settingsViewModel.themeMode.collectAsState()
@@ -76,17 +81,42 @@ class MainActivity : ComponentActivity() {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (showOnboarding) {
-                        OnboardingScreen(onFinish = { useDemo ->
-                            if (useDemo) app.securePreferences.setDemoMode(true)
-                            app.securePreferences.setOnboardingDone()
-                            showOnboarding = false
-                        })
+                        var connecting by remember { mutableStateOf(false) }
+                        var onboardingMessage by remember { mutableStateOf<String?>(null) }
+                        val scope = rememberCoroutineScope()
+                        OnboardingScreen(
+                            connecting = connecting,
+                            message = onboardingMessage,
+                            onFinish = { source ->
+                                scope.launch {
+                                    onboardingMessage = null
+                                    when (source) {
+                                        "SHARED" -> {
+                                            connecting = true
+                                            val result = app.mailSourceManager.useShared()
+                                            connecting = false
+                                            if (result.isFailure) {
+                                                onboardingMessage = (result.exceptionOrNull()?.message
+                                                    ?: "The shared test inbox is not available.") +
+                                                    " Choose the offline demo mailbox instead."
+                                                return@launch
+                                            }
+                                        }
+                                        "DEMO" -> app.mailSourceManager.useDemo()
+                                        else -> app.mailSourceManager.useOwn()
+                                    }
+                                    app.securePreferences.setOnboardingDone()
+                                    showOnboarding = false
+                                }
+                            }
+                        )
                     } else {
                         AppNavigation(
                             agentViewModel = agentViewModel,
                             memoryViewModel = memoryViewModel,
                             tasksViewModel = tasksViewModel,
                             settingsViewModel = settingsViewModel,
+                            mailboxViewModel = mailboxViewModel,
                             browserAgentController = app.browserAgentController,
                             browserStore = app.browserStore,
                             onConnectGmail = ::startGmailAuthorization,

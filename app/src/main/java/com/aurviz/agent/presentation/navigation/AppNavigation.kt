@@ -42,6 +42,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Tasks : Screen("tasks", "Tasks", Icons.Default.Schedule)
     object Settings : Screen("settings", "Settings", Icons.Default.Settings)
     object Browser : Screen("browser?url={url}", "Browser", Icons.Default.Language)
+    object Mailbox : Screen("mailbox", "Mailbox", Icons.Default.Settings)
 }
 
 @Composable
@@ -50,6 +51,7 @@ fun AppNavigation(
     memoryViewModel: MemoryViewModel,
     tasksViewModel: TasksViewModel,
     settingsViewModel: SettingsViewModel,
+    mailboxViewModel: com.aurviz.agent.presentation.mailbox.MailboxViewModel,
     browserAgentController: BrowserAgentController,
     browserStore: com.aurviz.agent.service.web.BrowserStore,
     onConnectGmail: () -> Unit,
@@ -141,9 +143,11 @@ fun AppNavigation(
             popExitTransition = { fadeOut(tween(140)) + slideOutVertically(tween(220)) { it / 28 } }
         ) {
             composable(Screen.Agent.route) {
-                AgentScreen(viewModel = agentViewModel, onOpenBrowser = {
-                    navController.navigate("browser?url=")
-                })
+                AgentScreen(
+                    viewModel = agentViewModel,
+                    onOpenBrowser = { navController.navigate("browser?url=") },
+                    onOpenMailbox = { navController.navigate(Screen.Mailbox.route) { launchSingleTop = true } }
+                )
             }
             composable(Screen.Memory.route) {
                 MemoryScreen(viewModel = memoryViewModel)
@@ -155,7 +159,18 @@ fun AppNavigation(
                 SettingsScreen(
                     viewModel = settingsViewModel,
                     onConnectGmail = onConnectGmail,
-                    onDisconnectGmail = settingsViewModel::disconnectGmail
+                    onDisconnectGmail = settingsViewModel::disconnectGmail,
+                    onOpenMailbox = { navController.navigate(Screen.Mailbox.route) { launchSingleTop = true } }
+                )
+            }
+            composable(Screen.Mailbox.route) {
+                com.aurviz.agent.presentation.mailbox.MailboxScreen(
+                    viewModel = mailboxViewModel,
+                    onBack = { navController.popBackStack() },
+                    onAskAgent = { prompt, attachment ->
+                        navController.popBackStack(Screen.Agent.route, inclusive = false)
+                        agentViewModel.sendPrompt(prompt, attachment = attachment)
+                    }
                 )
             }
             composable(Screen.Browser.route) { entry ->

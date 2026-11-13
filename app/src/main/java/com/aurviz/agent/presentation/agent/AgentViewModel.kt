@@ -37,7 +37,7 @@ class AgentViewModel(
         }
     }
 
-    val demoMode = securePreferences.demoMode
+    val mailSource = securePreferences.mailSource
 
     fun sendPrompt(prompt: String, isVoice: Boolean = false, attachment: String? = null) {
         viewModelScope.launch {

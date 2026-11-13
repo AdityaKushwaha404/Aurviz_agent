@@ -24,7 +24,7 @@ class EmailTool(
         val validationError = validate(recipient, subject, body)
         if (validationError != null) return failure(validationError)
         if (!mail.isConnected()) {
-            return failure("Connect Gmail in Settings (or turn on the demo mailbox) before preparing email delivery.")
+            return failure("Choose a mailbox in Settings, Mailbox before sending email.")
         }
         return ToolExecutionResponse(
             toolName = name,
@@ -48,7 +48,7 @@ class EmailTool(
         val body = payload["body"] as? String ?: ""
         validate(recipient, subject, body)?.let { return failure(it) }
         if (!mail.isConnected()) {
-            return failure("Connect Gmail in Settings (or turn on the demo mailbox) before confirming email delivery.")
+            return failure("Choose a mailbox in Settings, Mailbox before sending email.")
         }
 
         return try {
@@ -66,6 +66,9 @@ class EmailTool(
             )
         } catch (error: Exception) {
             val message = when (error) {
+                is com.aurviz.agent.data.remote.BackendApiException ->
+                    if (error.statusCode in 400..499) (error.message ?: "The email was rejected.")
+                    else "The mail service is temporarily unavailable. Try again shortly."
                 is IOException -> error.message ?: "Could not reach Aurviz. Check your connection and try again."
                 else -> "Aurviz could not accept this email. Check your connection and Gmail authorization, then try again."
             }

@@ -15,8 +15,9 @@ import com.aurviz.agent.data.repository.TaskSchedulerRepositoryImpl
 import com.aurviz.agent.data.tools.EmailTool
 import com.aurviz.agent.data.mail.BackendMailService
 import com.aurviz.agent.data.mail.DemoMailService
+import com.aurviz.agent.data.mail.MailSourceManager
+import com.aurviz.agent.data.mail.PrefsDemoMailStore
 import com.aurviz.agent.domain.mail.MailGateway
-import com.aurviz.agent.domain.mail.MailService
 import com.aurviz.agent.data.tools.GmailDraftTool
 import com.aurviz.agent.data.tools.GmailReadTool
 import com.aurviz.agent.data.tools.GmailSearchTool
@@ -39,7 +40,8 @@ class AurvizApp : Application() {
 
     lateinit var securePreferences: SecurePreferences private set
     lateinit var backendAuthManager: BackendAuthManager private set
-    lateinit var mailService: MailService private set
+    lateinit var mailService: MailGateway private set
+    lateinit var mailSourceManager: MailSourceManager private set
     lateinit var database: AppDatabase private set
     lateinit var memoryRepository: MemoryRepository private set
     lateinit var taskSchedulerRepository: TaskSchedulerRepository private set
@@ -56,8 +58,13 @@ class AurvizApp : Application() {
         securePreferences = SecurePreferences(this)
         val backendApi = BackendApiClient(BuildConfig.API_BASE_URL)
         backendAuthManager = BackendAuthManager(backendApi, securePreferences)
+        mailSourceManager = MailSourceManager(securePreferences, backendAuthManager)
         // Wake the hosted backend early so the first Gmail action is not slow.
-        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { backendApi.warmUp() }
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            backendApi.warmUp()
+            // With the shared test inbox selected, make sure this device has a session ready.
+            mailSourceManager.ensureSession()
+        }
         database = AppDatabase.getInstance(this)
         memoryRepository = MemoryRepositoryImpl(database.memoryDao())
         taskSchedulerRepository = TaskSchedulerRepositoryImpl(
@@ -75,7 +82,7 @@ class AurvizApp : Application() {
         // 3. Register Agent Tools
         mailService = MailGateway(
             real = BackendMailService(backendAuthManager),
-            demo = DemoMailService(),
+            demo = DemoMailService(store = PrefsDemoMailStore(this)),
             demoEnabled = securePreferences::isDemoMode
         )
         val emailTool = EmailTool(mailService) { securePreferences.getDefaultEmail() }

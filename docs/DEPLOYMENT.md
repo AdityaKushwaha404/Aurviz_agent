@@ -39,6 +39,8 @@ npm start
 | `ANDROID_REDIRECT_URI` | `aurviz://oauth/callback` |
 | `PUBLIC_BASE_URL` | Public HTTPS URL of the service |
 | `ROLE` | `all`, `api` or `worker` |
+| `SHARED_TEST_ACCOUNT_EMAIL` | The throwaway account reviewers use (default `adityatesting404@gmail.com`) |
+| `SHARED_SESSION_TTL_HOURS` | Lifetime of a reviewer session (default 72) |
 
 Generate secrets with `openssl rand -base64 32`.
 
@@ -52,10 +54,21 @@ Generate secrets with `openssl rand -base64 32`.
 
 `gmail.readonly` is a restricted scope: it works for listed test users, and a public release needs Google verification. Accounts connected before the read scopes were added must disconnect and reconnect.
 
-## 4. Hosting notes
+## 4. Preparing the shared test inbox
+
+1. Create a throwaway Gmail account (no private data) and add it as an OAuth test user.
+2. Open the app, choose **My own Gmail**, and sign in once with that account. The backend stores its encrypted refresh token.
+3. From then on reviewers choose **Shared test inbox** and need nothing. The server only lets that account send to itself.
+4. **Publish the OAuth consent screen "In production".** While an app is in Testing status Google expires refresh tokens after 7 days, which would silently break the shared inbox. Publishing (even unverified) removes that expiry. Reviewers never see the consent screen on this path.
+5. If the account stops working, reconnect it once the same way (step 2). The app falls back to the demo mailbox in the meantime.
+
+Never put the account's password in the app, the repository or documents. It is not needed: the server holds only an encrypted refresh token.
+
+## 5. Hosting notes
 - Any host with PostgreSQL works. The reference deployment is a free web service plus a free database, which sleeps when idle. The app wakes it at launch and allows a 45 s first request.
 - Run at least one worker (`ROLE=all` does both API and worker).
+- A push to GitHub only updates the running service if auto-deploy is enabled. Otherwise use **Manual Deploy, Deploy latest commit** in the hosting dashboard. New endpoints (such as `/auth/shared-test`) return 404 until the new version is deployed.
 - Enable database TLS and backups for production.
 
-## 5. Continuous integration
+## 6. Continuous integration
 `.github/workflows/build.yml` runs the Android unit tests and builds the APK, and runs the backend tests and `npm audit` on every push.

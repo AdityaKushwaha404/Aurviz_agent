@@ -25,6 +25,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
+import com.aurviz.agent.core.security.SecurePreferences
 import com.aurviz.agent.domain.metrics.MetricSummary
 import com.aurviz.agent.domain.metrics.PerformanceRecorder
 
@@ -34,6 +35,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onConnectGmail: () -> Unit,
     onDisconnectGmail: () -> Unit,
+    onOpenMailbox: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val gmailConnectionState by viewModel.gmailConnectionState.collectAsState()
@@ -43,7 +45,9 @@ fun SettingsScreen(
     val storageMessage by viewModel.storageMessage.collectAsState()
     val performance by viewModel.performance.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
-    val demoMode by viewModel.demoMode.collectAsState()
+    val mailSource by viewModel.mailSource.collectAsState()
+    val mailBusy by viewModel.mailBusy.collectAsState()
+    val mailMessage by viewModel.mailMessage.collectAsState()
     val context = LocalContext.current
 
     var keyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
@@ -107,11 +111,53 @@ fun SettingsScreen(
                 }
             }
 
-            // ---- Gmail ----
-            SettingsSection(title = "Gmail", icon = Icons.Default.Email) {
+            // ---- Mailbox ----
+            SettingsSection(title = "Mailbox", icon = Icons.Default.Email) {
+                Text(
+                    "Choose which mailbox Aurviz reads and writes. You can change this at any time.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                MailSourceOption(
+                    selected = mailSource == SecurePreferences.SOURCE_SHARED,
+                    title = "Shared test inbox",
+                    badge = "Recommended for reviewers",
+                    description = "Real Gmail (adityatesting404@gmail.com). One tap, no password. " +
+                        "It can only send mail to itself, so it is safe to try anything.",
+                    onClick = { viewModel.selectMailSource(SecurePreferences.SOURCE_SHARED) }
+                )
+                MailSourceOption(
+                    selected = mailSource == SecurePreferences.SOURCE_DEMO,
+                    title = "Demo mailbox",
+                    badge = "Works offline",
+                    description = "Sample emails stored on this phone. You can view them and watch them " +
+                        "change as Aurviz drafts or sends.",
+                    onClick = { viewModel.selectMailSource(SecurePreferences.SOURCE_DEMO) }
+                )
+                MailSourceOption(
+                    selected = mailSource == SecurePreferences.SOURCE_OWN,
+                    title = "My own Gmail",
+                    badge = null,
+                    description = "Sign in with Google. Aurviz never sees your password.",
+                    onClick = { viewModel.selectMailSource(SecurePreferences.SOURCE_OWN) }
+                )
+
+                if (mailBusy) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text("Connecting…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                mailMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusDot(
                         when {
+                            mailSource == SecurePreferences.SOURCE_DEMO -> SuccessGreen
                             isConnected -> SuccessGreen
                             hasProblem -> WarningOrange
                             else -> MaterialTheme.colorScheme.outline
@@ -119,40 +165,30 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        gmailConnectionState,
+                        when (mailSource) {
+                            SecurePreferences.SOURCE_DEMO -> "Using the demo mailbox"
+                            else -> gmailConnectionState
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f)
                     )
                 }
-                Text(
-                    "Signs in with Google, so Aurviz never sees your password. It can search and read mail for " +
-                        "summaries and save drafts. It sends only after you approve the recipient, subject and message.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Demo mailbox", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Use a built-in sample inbox (interviews, assignments, alerts). No Google account needed, " +
-                                "and nothing is ever sent to a real address.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onOpenMailbox) {
+                        Icon(Icons.Default.Inbox, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("View mailbox")
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Switch(checked = demoMode, onCheckedChange = { viewModel.setDemoMode(it) })
-                }
-                if (isConnected) {
-                    OutlinedButton(onClick = onDisconnectGmail) { Text("Disconnect") }
-                } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onConnectGmail) { Text("Connect Gmail") }
-                        if (hasProblem) {
-                            OutlinedButton(onClick = viewModel::refreshGmailStatus) { Text("Retry") }
+                    if (mailSource == SecurePreferences.SOURCE_OWN) {
+                        if (isConnected) {
+                            OutlinedButton(onClick = onDisconnectGmail) { Text("Disconnect") }
+                        } else {
+                            OutlinedButton(onClick = onConnectGmail) { Text("Connect Gmail") }
                         }
+                    }
+                    if (mailSource != SecurePreferences.SOURCE_DEMO && hasProblem) {
+                        OutlinedButton(onClick = viewModel::refreshGmailStatus) { Text("Retry") }
                     }
                 }
             }
@@ -326,3 +362,49 @@ private fun metricLabel(metric: String): String = when (metric) {
 
 private fun formatMs(ms: Long): String =
     if (ms < 1000) "$ms ms" else String.format(java.util.Locale.US, "%.1f s", ms / 1000.0)
+
+@Composable
+private fun MailSourceOption(
+    selected: Boolean,
+    title: String,
+    badge: String?,
+    description: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            if (selected) 2.dp else 1.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+            RadioButton(selected = selected, onClick = onClick)
+            Spacer(modifier = Modifier.width(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    if (badge != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Text(
+                                badge,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
