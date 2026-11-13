@@ -102,7 +102,7 @@ fun AgentScreen(
     val isSpeaking by viewModel.isSpeaking.collectAsState()
     val mailSource by viewModel.mailSource.collectAsState()
     val gmailState by (viewModel.gmailConnectionState ?: kotlinx.coroutines.flow.MutableStateFlow("")).collectAsState()
-    val needsSignIn = mailSource != "DEMO" && !gmailState.startsWith("Connected as")
+    val needsSignIn = mailSource != "DEMO" && !gmailState.startsWith("Connected as") && !gmailState.startsWith("Checking")
 
     var textInput by rememberSaveable { mutableStateOf("") }
     var showClearChatConfirmation by remember { mutableStateOf(false) }

@@ -62,6 +62,7 @@ class AurvizApp : Application() {
         // Wake the hosted backend early so the first Gmail action is not slow.
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             backendApi.warmUp()
+            backendAuthManager.refreshConnectionState()
         }
         database = AppDatabase.getInstance(this)
         memoryRepository = MemoryRepositoryImpl(database.memoryDao())

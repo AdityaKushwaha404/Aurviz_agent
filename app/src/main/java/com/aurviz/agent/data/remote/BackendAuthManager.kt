@@ -14,7 +14,7 @@ class BackendAuthManager(
     private val api: BackendApiClient,
     private val securePreferences: SecurePreferences
 ) {
-    private val _connectionState = MutableStateFlow("Gmail not connected")
+    private val _connectionState = MutableStateFlow(if (securePreferences.getBackendAccessToken().isNullOrBlank()) "Gmail not connected" else "Checking Gmail…")
     val connectionState: StateFlow<String> = _connectionState.asStateFlow()
 
     fun isConnected(): Boolean = !securePreferences.getBackendAccessToken().isNullOrBlank()
