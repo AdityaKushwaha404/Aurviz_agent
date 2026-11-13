@@ -279,7 +279,7 @@ fun MemoryItemCard(
                     color = PrimaryBlue.copy(alpha = 0.08f),
                     shape = CircleShape,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(40.dp)
                         .clickable(onClick = onEdit)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -295,7 +295,7 @@ fun MemoryItemCard(
                     color = ErrorRed.copy(alpha = 0.08f),
                     shape = CircleShape,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(40.dp)
                         .clickable(onClick = onDelete)
                 ) {
                     Box(contentAlignment = Alignment.Center) {

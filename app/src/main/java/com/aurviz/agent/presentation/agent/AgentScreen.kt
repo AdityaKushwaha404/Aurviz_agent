@@ -32,6 +32,57 @@ import com.aurviz.agent.domain.model.SensitiveAction
 import com.aurviz.agent.domain.model.ToolStatus
 import com.aurviz.agent.presentation.theme.*
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
+import android.widget.Toast
+import com.aurviz.agent.core.util.TimeUtils
+import com.aurviz.agent.presentation.components.MarkdownText
+
+private data class StarterPrompt(
+    val icon: ImageVector,
+    val title: String,
+    val subtitle: String,
+    val prompt: String
+)
+
+private val STARTER_PROMPTS = listOf(
+    StarterPrompt(
+        Icons.Default.MarkEmailRead, "Summarize my inbox",
+        "Find important emails from the last few days.",
+        "Check my important emails from the last 3 days and summarize them."
+    ),
+    StarterPrompt(
+        Icons.Default.Schedule, "Daily 9 AM digest",
+        "Run in the background every morning.",
+        "Every morning at 9 AM, check my important emails and summarize them."
+    ),
+    StarterPrompt(
+        Icons.Default.Drafts, "Draft an email",
+        "Saved to Gmail Drafts, never sent without approval.",
+        "Draft an email to my professor asking for a deadline extension. Don't send it."
+    ),
+    StarterPrompt(
+        Icons.Default.Psychology, "Remember a preference",
+        "Aurviz applies it to later replies.",
+        "Remember that I prefer formal emails."
+    ),
+    StarterPrompt(
+        Icons.Default.Language, "Browse the web",
+        "Open a site and extract what matters.",
+        "Open news.ycombinator.com and tell me the top 3 stories."
+    )
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AgentScreen(
@@ -47,163 +98,95 @@ fun AgentScreen(
     val rmsLevel by viewModel.rmsLevel.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
 
-    var textInput by remember { mutableStateOf("") }
+    var textInput by rememberSaveable { mutableStateOf("") }
     var showClearChatConfirmation by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom on new message
+    // What the agent is doing right now, shown in the header and typing indicator.
+    val activity = remember(messages, isProcessing, pendingConfirmation) {
+        if (!isProcessing) null
+        else if (pendingConfirmation != null) "Waiting for your approval"
+        else (messages.lastOrNull { it is AgentMessage.ToolAction } as? AgentMessage.ToolAction)
+            ?.takeIf { it.status == ToolStatus.RUNNING || it.status == ToolStatus.CONFIRMED }
+            ?.let { ToolPresentation.runningLabel(it.toolName) }
+            ?: "Thinking…"
+    }
+
+    // Keep the newest content in view, including the typing indicator.
     LaunchedEffect(messages.size, isProcessing) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
-        }
+        val lastIndex = messages.size - 1 + if (isProcessing) 1 else 0
+        if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
     }
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = PrimaryBlue,
-                            modifier = Modifier.size(42.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_launcher_foreground),
-                                contentDescription = null,
-                                tint = Color.Unspecified,
-                                modifier = Modifier.padding(5.dp)
+            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_launcher_foreground),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.padding(5.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Aurviz",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .background(if (isProcessing) WarningOrange else SuccessGreen, CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                activity ?: "Ready",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(verticalArrangement = Arrangement.Center) {
-                            Text("Aurviz", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = TextPrimary)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    shape = CircleShape,
-                                    color = if (isProcessing) WarningOrange else SuccessGreen,
-                                    modifier = Modifier.size(7.dp)
-                                ) {}
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    if (isProcessing) "Working on your request" else "Personal AI assistant",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            }
-                        }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                actions = {
                     IconButton(onClick = onOpenBrowser) {
-                        Icon(Icons.Default.Language, contentDescription = "Open browser", tint = PrimaryBlue)
+                        Icon(Icons.Default.Language, contentDescription = "Open browser", tint = MaterialTheme.colorScheme.primary)
                     }
                     if (messages.isNotEmpty()) {
                         IconButton(onClick = { showClearChatConfirmation = true }, enabled = !isProcessing) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = "Clear conversation", tint = TextSecondary)
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Clear conversation", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                    }
-                }
-            )
-        },
-        bottomBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(8.dp)
-            ) {
-                // Keep the composer compact; starter prompts live in the empty-state content.
-                if (messages.isEmpty()) {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    ) {
-                        item {
-                            SuggestionChip(
-                                onClick = { textInput = "Every morning at 9 AM, check my important emails and prepare a summary." },
-                                label = { Text("⏰ Schedule 9 AM email summary") }
-                            )
-                        }
-                        item {
-                            SuggestionChip(
-                                onClick = { textInput = "Remember that my manager is Alex and email is alex@aurviz.com" },
-                                label = { Text("🧠 Save manager info") }
-                            )
-                        }
-                        item {
-                            SuggestionChip(
-                                onClick = { textInput = "Browse https://news.ycombinator.com and extract top headlines" },
-                                label = { Text("🌐 Scrape tech headlines") }
-                            )
-                        }
-                        item {
-                            SuggestionChip(
-                                onClick = { textInput = "Send an email to my manager with a project status update." },
-                                label = { Text("✉️ Send email (HITL Gate)") }
-                            )
-                        }
-                    }
-                }
-
-                // Input Bar with Animated Voice Button & Send
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    IconButton(
-                        onClick = {
-                            if (isListening) viewModel.stopVoiceInput()
-                            else viewModel.startVoiceInput()
-                        },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = if (isListening) ErrorRed else PrimaryBlue.copy(alpha = 0.12f)
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
-                            contentDescription = "Voice Input",
-                            tint = if (isListening) Color.White else PrimaryBlue
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    OutlinedTextField(
-                        value = textInput,
-                        onValueChange = { textInput = it },
-                        placeholder = { Text(if (isListening) "Listening to voice input..." else "Speak or command your agent...") },
-                        modifier = Modifier.weight(1f),
-                        maxLines = 3,
-                        shape = RoundedCornerShape(24.dp)
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = {
-                            if (textInput.isNotBlank()) {
-                                viewModel.sendPrompt(textInput)
-                                textInput = ""
-                            }
-                        },
-                        enabled = textInput.isNotBlank() && !isProcessing,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = PrimaryBlue,
-                            disabledContainerColor = Color.LightGray
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint = Color.White
-                        )
                     }
                 }
             }
+        },
+        bottomBar = {
+            Composer(
+                value = textInput,
+                onValueChange = { textInput = it },
+                isListening = isListening,
+                isProcessing = isProcessing,
+                onMic = { if (isListening) viewModel.stopVoiceInput() else viewModel.startVoiceInput() },
+                onSend = {
+                    if (textInput.isNotBlank()) {
+                        viewModel.sendPrompt(textInput)
+                        textInput = ""
+                    }
+                }
+            )
         }
     ) { paddingValues ->
         Box(
@@ -212,134 +195,15 @@ fun AgentScreen(
                 .padding(paddingValues)
         ) {
             if (messages.isEmpty()) {
-                // Empty state greeting with rich quick prompt cards
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = PrimaryBlue.copy(alpha = 0.1f),
-                        modifier = Modifier.size(80.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.SmartToy,
-                                contentDescription = null,
-                                modifier = Modifier.size(44.dp),
-                                tint = PrimaryBlue
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Aurviz Personal AI Agent",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        "Autonomous assistant for voice commands, personal memory, web automation, and background task execution.",
-                        color = TextSecondary,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Text(
-                        "TRY A QUICK COMMAND",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = PrimaryBlue,
-                        letterSpacing = 1.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Surface(
-                            color = SurfaceLight,
-                            shape = RoundedCornerShape(16.dp),
-                            shadowElevation = 1.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { textInput = "Every morning at 9 AM, check my important emails and prepare a summary." }
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = CircleShape, color = PrimaryBlue.copy(alpha = 0.1f), modifier = Modifier.size(36.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Schedule Daily Email Digest", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text("Every morning at 9 AM, check emails & summarize.", fontSize = 12.sp, color = TextSecondary)
-                                }
-                            }
-                        }
-
-                        Surface(
-                            color = SurfaceLight,
-                            shape = RoundedCornerShape(16.dp),
-                            shadowElevation = 1.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { textInput = "Remember that my manager is Alex and email is alex@aurviz.com" }
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = CircleShape, color = PrimaryBlue.copy(alpha = 0.1f), modifier = Modifier.size(36.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Psychology, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Save Personal Memory", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text("Remember that my manager is Alex (alex@aurviz.com).", fontSize = 12.sp, color = TextSecondary)
-                                }
-                            }
-                        }
-
-                        Surface(
-                            color = SurfaceLight,
-                            shape = RoundedCornerShape(16.dp),
-                            shadowElevation = 1.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { textInput = "Browse https://news.ycombinator.com and extract top headlines" }
-                        ) {
-                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = CircleShape, color = PrimaryBlue.copy(alpha = 0.1f), modifier = Modifier.size(36.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.Language, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Scrape Tech Headlines", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text("Browse Hacker News and extract top tech stories.", fontSize = 12.sp, color = TextSecondary)
-                                }
-                            }
-                        }
-                    }
-                }
+                EmptyState(onPick = { textInput = it })
             } else {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
                         MessageItem(
@@ -347,11 +211,8 @@ fun AgentScreen(
                             onRetry = if (isProcessing) null else { prompt -> viewModel.sendPrompt(prompt) }
                         )
                     }
-
                     if (isProcessing) {
-                        item {
-                            ProcessingIndicator()
-                        }
+                        item(key = "typing") { ProcessingIndicator(activity ?: "Thinking…") }
                     }
                 }
             }
@@ -369,7 +230,7 @@ fun AgentScreen(
                 AlertDialog(
                     onDismissRequest = { showClearChatConfirmation = false },
                     title = { Text("Clear conversation?") },
-                    text = { Text("This removes the saved chat history from this device.") },
+                    text = { Text("This removes the saved chat history from this device. Saved memories are kept.") },
                     confirmButton = {
                         TextButton(onClick = {
                             viewModel.clearConversation()
@@ -398,131 +259,330 @@ fun AgentScreen(
 }
 
 @Composable
-fun MessageItem(message: AgentMessage, onRetry: ((String) -> Unit)? = null) {
-    when (message) {
-        is AgentMessage.UserPrompt -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+private fun Composer(
+    value: String,
+    onValueChange: (String) -> Unit,
+    isListening: Boolean,
+    isProcessing: Boolean,
+    onMic: () -> Unit,
+    onSend: () -> Unit
+) {
+    Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        ) {
+            FilledIconButton(
+                onClick = onMic,
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = if (isListening) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (isListening) MaterialTheme.colorScheme.onError
+                    else MaterialTheme.colorScheme.onPrimaryContainer
+                )
             ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp, 16.dp, 2.dp, 16.dp),
-                    color = PrimaryBlue,
-                    contentColor = Color.White,
-                    modifier = Modifier.widthIn(max = 300.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        if (message.isVoiceInput) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Mic, contentDescription = null, modifier = Modifier.size(14.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Voice Command", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                        }
-                        Text(message.text, fontSize = 15.sp)
-                    }
-                }
+                Icon(
+                    imageVector = if (isListening) Icons.Default.MicOff else Icons.Default.Mic,
+                    contentDescription = if (isListening) "Stop listening" else "Start voice input"
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TextField(
+                value = value,
+                onValueChange = onValueChange,
+                placeholder = { Text(if (isListening) "Listening…" else "Ask Aurviz anything") },
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 48.dp),
+                maxLines = 4,
+                shape = RoundedCornerShape(24.dp),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
+                )
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            FilledIconButton(
+                onClick = onSend,
+                enabled = value.isNotBlank() && !isProcessing,
+                modifier = Modifier.size(48.dp),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    disabledContentColor = MaterialTheme.colorScheme.outline
+                )
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send message")
             }
         }
-        is AgentMessage.ToolAction -> {
-            var expanded by remember { mutableStateOf(false) }
+    }
+}
 
+@Composable
+private fun EmptyState(onPick: (String) -> Unit) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(vertical = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        item {
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = ToolBadgeBackground,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded }
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(72.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                "How can I help?",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Type or tap the mic. I can read your email, remember things, run tasks in the background and browse the web.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+        items(STARTER_PROMPTS) { starter ->
+            Surface(
+                onClick = { onPick(starter.prompt) },
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.size(40.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryBlue)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Tool: ${message.toolName}", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        }
-                        StatusBadge(message.status)
-                    }
-
-                    if (!message.resultOutput.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = message.resultOutput,
-                            fontSize = 12.sp,
-                            color = TextSecondary,
-                            maxLines = if (expanded) Int.MAX_VALUE else 4
-                        )
-                        if (!expanded && message.resultOutput.length > 120) {
-                            Text(
-                                "Tap to view full output...",
-                                fontSize = 11.sp,
-                                color = PrimaryBlue,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(top = 2.dp)
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                starter.icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            starter.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            starter.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
-        is AgentMessage.AgentResponse -> {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start
-            ) {
+    }
+}
+
+@Composable
+fun MessageItem(message: AgentMessage, onRetry: ((String) -> Unit)? = null) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+
+    when (message) {
+        is AgentMessage.UserPrompt -> {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Surface(
-                    shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 2.dp),
-                    color = SurfaceLight,
-                    tonalElevation = 2.dp,
-                    shadowElevation = 1.dp,
+                    shape = RoundedCornerShape(20.dp, 20.dp, 4.dp, 20.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.widthIn(max = 320.dp)
                 ) {
+                    Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        if (message.isVoiceInput) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Mic, contentDescription = "Voice message", modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Voice", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                        }
+                        Text(message.text, fontSize = 15.sp, lineHeight = 21.sp)
+                    }
+                }
+            }
+        }
+
+        is AgentMessage.ToolAction -> ToolActionCard(message)
+
+        is AgentMessage.AgentResponse -> {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp, 20.dp, 20.dp, 4.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                    modifier = Modifier.widthIn(max = 340.dp)
+                ) {
+                    MarkdownText(
+                        markdown = message.text,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(message.text))
+                            Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy", style = MaterialTheme.typography.labelSmall)
+                    }
                     Text(
-                        message.text,
-                        modifier = Modifier.padding(12.dp),
-                        fontSize = 15.sp,
-                        color = TextPrimary
+                        TimeUtils.formatTime(message.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
+
         is AgentMessage.ErrorMessage -> {
             Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = ErrorRed.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f)),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.Error, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(message.error, color = ErrorRed, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = "Error",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            message.error,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                     val retryPrompt = message.retryPrompt
                     if (retryPrompt != null && onRetry != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        TextButton(onClick = { onRetry(retryPrompt) }) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { onRetry(retryPrompt) },
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f))
+                        ) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Retry", fontSize = 13.sp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Try again")
                         }
                     }
                 }
             }
         }
+
         is AgentMessage.AgentReasoning -> {
             Text(
-                "💭 ${message.thought}",
-                fontSize = 12.sp,
-                color = TextSecondary,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                message.thought,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontStyle = FontStyle.Italic
             )
+        }
+    }
+}
+
+@Composable
+private fun ToolActionCard(message: AgentMessage.ToolAction) {
+    var expanded by remember { mutableStateOf(false) }
+    val hasOutput = !message.resultOutput.isNullOrBlank()
+    val longOutput = (message.resultOutput?.length ?: 0) > 140
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = longOutput) { expanded = !expanded }
+            .animateContentSize()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    ToolPresentation.icon(message.toolName),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    ToolPresentation.title(message.toolName),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                if (message.status == ToolStatus.RUNNING) {
+                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                StatusBadge(message.status)
+            }
+            if (hasOutput) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = message.resultOutput.orEmpty(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = if (expanded) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (longOutput) {
+                    Text(
+                        if (expanded) "Show less" else "Show more",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -530,37 +590,58 @@ fun MessageItem(message: AgentMessage, onRetry: ((String) -> Unit)? = null) {
 @Composable
 fun StatusBadge(status: ToolStatus) {
     val (color, text) = when (status) {
-        ToolStatus.RUNNING -> Pair(WarningOrange, "Running...")
-        ToolStatus.AWAITING_CONFIRMATION -> Pair(WarningOrange, "Pending Approval")
-        ToolStatus.CONFIRMED -> Pair(PrimaryBlue, "Confirmed")
-        ToolStatus.CANCELLED -> Pair(ErrorRed, "Cancelled")
-        ToolStatus.SUCCESS -> Pair(SuccessGreen, "Success")
-        ToolStatus.FAILED -> Pair(ErrorRed, "Failed")
+        ToolStatus.RUNNING -> Pair(WarningOrange, "Running")
+        ToolStatus.AWAITING_CONFIRMATION -> Pair(WarningOrange, "Needs approval")
+        ToolStatus.CONFIRMED -> Pair(MaterialTheme.colorScheme.primary, "Approved")
+        ToolStatus.CANCELLED -> Pair(MaterialTheme.colorScheme.onSurfaceVariant, "Cancelled")
+        ToolStatus.SUCCESS -> Pair(SuccessGreen, "Done")
+        ToolStatus.FAILED -> Pair(MaterialTheme.colorScheme.error, "Failed")
     }
 
     Surface(
-        color = color.copy(alpha = 0.15f),
+        color = color.copy(alpha = 0.16f),
         shape = RoundedCornerShape(16.dp)
     ) {
         Text(
             text = text,
             color = color,
-            fontSize = 11.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         )
     }
 }
 
 @Composable
-fun ProcessingIndicator() {
+fun ProcessingIndicator(label: String = "Thinking…") {
+    val transition = rememberInfiniteTransition(label = "typing")
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(8.dp)
+        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
-        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("Agent is reasoning and planning...", fontSize = 12.sp, color = TextSecondary)
+        repeat(3) { index ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(600, delayMillis = index * 150),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "dot$index"
+            )
+            Box(
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(7.dp)
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha), CircleShape)
+            )
+        }
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

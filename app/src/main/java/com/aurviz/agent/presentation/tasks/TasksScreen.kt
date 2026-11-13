@@ -52,8 +52,8 @@ fun TasksScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Scheduled Background Tasks", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        Text("WorkManager recurring routines & delayed jobs", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("Tasks", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        Text("Routines that run in the background", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -91,7 +91,7 @@ fun TasksScreen(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            "WorkManager executes tasks persistently in background when battery and system idle policies permit.",
+                            "Tasks keep running after you close the app. Android may start them a few minutes late to save battery.",
                             fontSize = 12.sp,
                             color = TextPrimary,
                             modifier = Modifier.weight(1f),
@@ -122,7 +122,7 @@ fun TasksScreen(
                     ) {
                         Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp), tint = PrimaryBlue)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("$activeCount Active Tasks", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
+                        Text("$activeCount active", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryBlue)
                     }
                 }
                 Surface(
@@ -136,7 +136,7 @@ fun TasksScreen(
                     ) {
                         Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp), tint = SuccessGreen)
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("$completedCount Completed", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
+                        Text("$completedCount succeeded", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
                     }
                 }
             }
@@ -493,7 +493,7 @@ fun ScheduledTaskCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        if (isFailed) "Retry" else "Trigger Now",
+                        if (isFailed) "Retry" else "Run now",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )

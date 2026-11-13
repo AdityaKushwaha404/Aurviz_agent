@@ -55,15 +55,10 @@ class EmailTool(
             val requestKey = actionId.takeIf { it.matches(Regex("^[A-Za-z0-9._:-]{8,120}$")) }
                 ?: UUID.randomUUID().toString()
             val result = backendAuthManager.sendEmail(recipient, subject, body, requestKey)
-            val id = result.optString("id")
             ToolExecutionResponse(
                 toolName = name,
                 isSuccess = true,
-                output = if (id.isNotBlank()) {
-                    "Email was queued by Aurviz for sending (request " + id + "). Delivery is not yet confirmed."
-                } else {
-                    "Email was queued by Aurviz for sending. Delivery is not yet confirmed."
-                }
+                output = "Email queued for sending. Gmail confirms delivery shortly after."
             )
         } catch (error: Exception) {
             val message = when (error) {

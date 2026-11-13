@@ -73,21 +73,6 @@ class SchedulerTool(
         }
     }
 
-    private fun synthesizeAction(rawAction: String): String {
-        val lower = rawAction.lowercase()
-        return when {
-            lower.contains("email") && lower.contains("summary") ->
-                "Check priority unread emails, extract key updates and action items, and prepare a structured email summary digest."
-            lower.contains("email") ->
-                "Check important emails and draft necessary responses or updates."
-            lower.contains("news") || lower.contains("browse") ->
-                "Browse top articles, extract key headlines, and compile a quick reading digest."
-            lower.startsWith("schedule") -> {
-                val cleaned = rawAction.replace(Regex("""(?i)^schedule\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm|p\.m\.|a\.m\.)?)?"""), "").trim()
-                if (cleaned.isNotBlank()) cleaned.replaceFirstChar { it.uppercase() }
-                else rawAction
-            }
-            else -> rawAction
-        }
-    }
+    /** The model already writes a complete instruction; never rewrite it with keyword rules. */
+    private fun synthesizeAction(rawAction: String): String = rawAction.trim()
 }

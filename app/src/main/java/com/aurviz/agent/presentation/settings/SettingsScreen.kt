@@ -1,5 +1,9 @@
 package com.aurviz.agent.presentation.settings
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,230 +47,231 @@ fun SettingsScreen(
     var keyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
     var emailInput by remember(currentEmail) { mutableStateOf(currentEmail) }
     var keyVisible by remember { mutableStateOf(false) }
-
-    val scrollState = rememberScrollState()
+    val snackbar = remember { SnackbarHostState() }
 
     // Re-check the account each time Settings opens so a one-off network error does not stick.
     LaunchedEffect(Unit) { viewModel.refreshGmailStatus() }
+    LaunchedEffect(storageMessage) { storageMessage?.let { snackbar.showSnackbar(it) } }
+
+    val isConnected = gmailConnectionState.startsWith("Connected as ")
+    val hasProblem = gmailConnectionState.startsWith("Could not reach") ||
+        gmailConnectionState.contains("expired", ignoreCase = true)
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text("Agent Settings & Security", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-            )
+            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 1.dp) {
+                Text(
+                    "Settings",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                )
+            }
         }
     ) { paddingValues ->
         Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
-                .verticalScroll(scrollState),
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Security & Privacy Card
-            Card(
-                colors = CardDefaults.cardColors(containerColor = PrimaryBlue.copy(alpha = 0.08f)),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Lock, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Keystore-Backed Encrypted Storage", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "API keys and email addresses use encrypted preferences and are excluded from cloud backup and device transfer.",
-                        fontSize = 12.sp,
-                        color = TextSecondary
+            // ---- Gmail ----
+            SettingsSection(title = "Gmail", icon = Icons.Default.Email) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusDot(
+                        when {
+                            isConnected -> SuccessGreen
+                            hasProblem -> WarningOrange
+                            else -> MaterialTheme.colorScheme.outline
+                        }
                     )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        gmailConnectionState,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Text(
+                    "Signs in with Google, so Aurviz never sees your password. It can search and read mail for " +
+                        "summaries and save drafts. It sends only after you approve the recipient, subject and message.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isConnected) {
+                    OutlinedButton(onClick = onDisconnectGmail) { Text("Disconnect") }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onConnectGmail) { Text("Connect Gmail") }
+                        if (hasProblem) {
+                            OutlinedButton(onClick = viewModel::refreshGmailStatus) { Text("Retry") }
+                        }
+                    }
                 }
             }
 
-            // Gemini API Key Section
-            Text("AI Developer API", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            // ---- AI ----
+            SettingsSection(title = "AI model", icon = Icons.Default.AutoAwesome) {
+                OutlinedTextField(
+                    value = keyInput,
+                    onValueChange = { keyInput = it },
+                    label = { Text("Gemini API key") },
+                    singleLine = true,
+                    visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { keyVisible = !keyVisible }) {
+                            Icon(
+                                imageVector = if (keyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                contentDescription = if (keyVisible) "Hide key" else "Show key"
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Text(
+                    "Stored in Android Keystore-backed encrypted storage and excluded from backups.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Button(
+                    onClick = { viewModel.updateApiKey(keyInput) },
+                    enabled = keyInput != currentApiKey && keyInput.isNotBlank()
+                ) { Text("Save key") }
+            }
 
-            OutlinedTextField(
-                value = keyInput,
-                onValueChange = { keyInput = it },
-                label = { Text("Google Gemini API Key") },
-                placeholder = { Text("AIzaSy...") },
-                visualTransformation = if (keyVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                trailingIcon = {
-                    IconButton(onClick = { keyVisible = !keyVisible }) {
-                        Icon(
-                            imageVector = if (keyVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = "Toggle visibility"
+            // ---- Preferences ----
+            SettingsSection(title = "Preferences", icon = Icons.Default.Tune) {
+                OutlinedTextField(
+                    value = emailInput,
+                    onValueChange = { emailInput = it },
+                    label = { Text("Default recipient email") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                Button(
+                    onClick = { viewModel.updateDefaultEmail(emailInput) },
+                    enabled = emailInput != currentEmail
+                ) { Text("Save email") }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Spoken replies", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Read the agent's answers aloud.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            Button(
-                onClick = {
-                    viewModel.updateApiKey(keyInput)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text("Save API Key")
-            }
-            storageMessage?.let { message ->
-                Text(message, color = if (message.contains("saved in encrypted storage")) SuccessGreen else ErrorRed)
-            }
-
-            HorizontalDivider()
-
-            // Gmail account
-            Text("Gmail account", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(gmailConnectionState, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "Connected via Google OAuth; Aurviz never sees your password. Aurviz can search and read mail for summaries, " +
-                            "save drafts, and sends only after you approve the recipient, subject, and message. " +
-                            "If you connected before inbox access was added, disconnect and connect again.",
-                        fontSize = 13.sp,
-                        color = TextSecondary
-                    )
-                    if (gmailConnectionState.startsWith("Could not reach")) {
-                        OutlinedButton(onClick = viewModel::refreshGmailStatus) { Text("Retry") }
-                    }
-                    if (gmailConnectionState.startsWith("Connected as ")) {
-                        OutlinedButton(onClick = onDisconnectGmail) {
-                            Text("Disconnect Gmail")
-                        }
-                    } else {
-                        Button(onClick = onConnectGmail) {
-                            Text("Connect Gmail")
-                        }
-                    }
+                    Switch(checked = voiceFeedback, onCheckedChange = { viewModel.setVoiceFeedback(it) })
                 }
             }
 
-            // Tool Configuration Section
-            Text("Tool Configuration", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-
-            OutlinedTextField(
-                value = emailInput,
-                onValueChange = { emailInput = it },
-                label = { Text("Default recipient email") },
-                placeholder = { Text("recipient@company.com") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            Button(
-                onClick = {
-                    viewModel.updateDefaultEmail(emailInput)
-                },
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text("Save Email")
-            }
-
-            HorizontalDivider()
-
-            // Voice Settings
-            Text("Voice Interaction", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Spoken Agent Feedback (TTS)", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    Text("Speak agent responses automatically after execution", fontSize = 12.sp, color = TextSecondary)
-                }
-                Switch(
-                    checked = voiceFeedback,
-                    onCheckedChange = { viewModel.setVoiceFeedback(it) }
+            // ---- Permissions ----
+            SettingsSection(title = "Permissions", icon = Icons.Default.Security) {
+                Text(
+                    "Microphone is used only for voice commands. Notifications report scheduled task results.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                OutlinedButton(
+                    onClick = {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                ) {
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Open system permissions")
+                }
             }
 
-            HorizontalDivider()
-
-            // App permissions
-            Text("App permissions", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(
-                "Microphone is used only for voice commands. Notifications report scheduled task results.",
-                fontSize = 12.sp,
-                color = TextSecondary
-            )
-            OutlinedButton(
-                onClick = {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                },
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Manage permissions")
+            // ---- Performance ----
+            SettingsSection(title = "Performance", icon = Icons.Default.Speed) {
+                PerformancePanel(performance, onClear = viewModel::clearPerformanceSamples)
             }
 
-            HorizontalDivider()
-
-            PerformancePanel(performance, onClear = viewModel::clearPerformanceSamples)
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-private fun PerformancePanel(metrics: List<MetricSummary>, onClear: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Performance (measured on this device)", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+private fun SettingsSection(
+    title: String,
+    icon: ImageVector,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp)) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
-                "Latency from real usage. Agent turn includes network time to Gemini and Gmail.",
-                fontSize = 12.sp,
-                color = TextSecondary
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
-        if (metrics.isNotEmpty()) TextButton(onClick = onClear) { Text("Reset") }
-    }
-    if (metrics.isEmpty()) {
-        Text("No samples yet. Send a few commands to collect measurements.", fontSize = 13.sp, color = TextSecondary)
-        return
-    }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
-    ) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text("Metric", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(2.2f))
-                listOf("n", "median", "p95", "ok").forEach {
-                    Text(it, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(0.8f))
-                }
-            }
-            metrics.forEach { metric ->
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(metricLabel(metric.metric), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(2.2f))
-                    Text("${metric.count}", fontSize = 12.sp, modifier = Modifier.weight(0.8f))
-                    Text(formatMs(metric.medianMs), fontSize = 12.sp, modifier = Modifier.weight(0.8f))
-                    Text(formatMs(metric.p95Ms), fontSize = 12.sp, modifier = Modifier.weight(0.8f))
-                    Text("${(metric.successRate * 100).toInt()}%", fontSize = 12.sp, modifier = Modifier.weight(0.8f))
-                }
-            }
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content
+            )
         }
     }
+}
+
+@Composable
+private fun StatusDot(color: Color) {
+    Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
+}
+
+@Composable
+private fun PerformancePanel(metrics: List<MetricSummary>, onClear: () -> Unit) {
+    Text(
+        "Latency measured on this device from real use. Agent turn includes network time to Gemini and Gmail.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    if (metrics.isEmpty()) {
+        Text("No samples yet. Send a few commands to collect measurements.", style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text("Metric", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(2.2f))
+        listOf("n", "median", "p95", "ok").forEach {
+            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(0.9f))
+        }
+    }
+    metrics.forEach { metric ->
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(metricLabel(metric.metric), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(2.2f))
+            Text("${metric.count}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(0.9f))
+            Text(formatMs(metric.medianMs), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(0.9f))
+            Text(formatMs(metric.p95Ms), style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(0.9f))
+            Text("${(metric.successRate * 100).toInt()}%", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(0.9f))
+        }
+    }
+    TextButton(onClick = onClear) { Text("Reset samples") }
 }
 
 private fun metricLabel(metric: String): String = when (metric) {

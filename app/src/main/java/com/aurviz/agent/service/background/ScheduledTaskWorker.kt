@@ -52,7 +52,7 @@ class ScheduledTaskWorker(
             val emailContext = EmailTaskContextFactory.create(
                 promptAction = promptAction,
                 gmailConnected = app.backendAuthManager.isConnected(),
-                accountEmail = app.securePreferences.getDefaultEmail()
+                accountEmail = ""
             )
             val outcome = when {
                 emailContext?.skipMessage != null ->

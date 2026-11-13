@@ -33,7 +33,7 @@ object EmailTaskContextFactory {
             )
         } else {
             EmailTaskContext(
-                additionalInstructions = "The connected Gmail account is $accountEmail. " +
+                additionalInstructions = "Use the user's connected Gmail account" + accountEmail.takeIf(String::isNotBlank)?.let { " ($it)" }.orEmpty() + ". " +
                     "Use search_emails (Gmail query syntax, e.g. 'is:important newer_than:1d') and read_email " +
                     "to gather real inbox data before summarizing. Summarize only what the tools returned: " +
                     "sender, subject, key dates and any action required. If nothing matched, say so plainly. " +
