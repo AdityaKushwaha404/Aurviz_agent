@@ -10,7 +10,7 @@
     "start:api": "ROLE=api node --env-file=.env src/index.js",
     "start:worker": "ROLE=worker node --env-file=.env src/index.js",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
+    "prisma:migrate": "PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 prisma migrate deploy",
     "test": "node --test"
   },
   "dependencies": {

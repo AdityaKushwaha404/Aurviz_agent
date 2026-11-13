@@ -64,6 +64,7 @@ Generate secrets with `openssl rand -base64 32`.
 Only use a throwaway account. The server restricts it to sending to itself or example.com addresses and refuses to disconnect it.
 
 ## 5. Hosting notes
+- **Pooled databases (for example Neon's `-pooler` URL):** `prisma migrate deploy` can time out waiting for a Postgres advisory lock (error P1002). The `prisma:migrate` script therefore sets `PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1`. A direct (non-pooled) connection string is also fine.
 - Any host with PostgreSQL works. The reference deployment is a free web service plus a free database, which sleeps when idle. The app wakes it at launch and allows a 45 s first request.
 - Run at least one worker (`ROLE=all` does both API and worker).
 - A push to GitHub only updates the running service if auto-deploy is enabled. Otherwise use **Manual Deploy, Deploy latest commit** in the hosting dashboard. New endpoints return 404 until the new version is deployed.
