@@ -70,8 +70,7 @@ fun MailboxScreen(
 
     val sourceLabel = when (source) {
         SecurePreferences.SOURCE_DEMO -> "Demo mailbox · sample data"
-        SecurePreferences.SOURCE_SHARED -> "Shared test inbox · ${MailboxViewModel.SHARED_EMAIL}"
-        else -> "Your Gmail"
+        else -> "Gmail"
     }
 
     Scaffold(

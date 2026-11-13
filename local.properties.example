@@ -12,3 +12,7 @@ DEFAULT_TEST_EMAIL=user@example.com
 
 # Optional: bundle a Gemini API key into the APK so evaluators need no setup (never commit this file)
 gemini.api.key=
+
+# Reviewer test account shown in the app (optional)
+test.account.email=adityatesting404@gmail.com
+test.account.password=

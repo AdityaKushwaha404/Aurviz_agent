@@ -35,6 +35,5 @@ export const env = Object.freeze({
   androidRedirectUri: process.env.ANDROID_REDIRECT_URI,
   publicBaseUrl: process.env.PUBLIC_BASE_URL.replace(/\/$/, ""),
   accessTokenTtlDays: Number(process.env.ACCESS_TOKEN_TTL_DAYS ?? 30),
-  oauthCodeTtlMinutes: Number(process.env.OAUTH_CODE_TTL_MINUTES ?? 5),
-  sharedSessionTtlHours: Number(process.env.SHARED_SESSION_TTL_HOURS ?? 72)
+  oauthCodeTtlMinutes: Number(process.env.OAUTH_CODE_TTL_MINUTES ?? 5)
 });

@@ -14,7 +14,7 @@
 
 Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instructions, remembers your preferences, plans multi-step work, **uses tools** (email, memory, scheduler, web browser) and **executes tasks**, including scheduled ones that run while the app is closed.
 
-> **Evaluating this project?** You need no credentials. Install the APK and tap **Use the shared test inbox** (real Gmail on a throwaway account, one tap, no password), or choose the offline **demo mailbox**. Then follow the ten-minute script in the **[Evaluator Guide](docs/EVALUATOR_GUIDE.md)**.
+> **Evaluating this project?** Install the APK. The app shows the **email and password of a dedicated test Gmail account** with step-by-step sign-in instructions, or you can pick the offline **demo mailbox** (no sign-in at all). Then follow the ten-minute script in the **[Evaluator Guide](docs/EVALUATOR_GUIDE.md)**.
 
 ## What it can do
 
@@ -22,7 +22,7 @@ Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instr
 |---|---|
 | **Understand** | Voice and text commands. Gemini decides which tool to use and breaks complex requests into steps |
 | **Email** | Search, read and summarize mail; save drafts; send only after you approve To, Subject and Body in an editable dialog. A built-in **mailbox viewer** shows Inbox, Sent and Drafts and updates live |
-| **Three mailboxes** | **Shared test inbox** (real Gmail, no credentials, self-send only), **Demo mailbox** (offline sample data you can view and reset), or **your own Gmail** (Google sign-in) |
+| **Three mailboxes** | **Test Gmail account** (credentials and steps shown in the app), **your own Gmail** (Google sign-in), or the offline **Demo mailbox** (sample data you can view and reset) |
 | **Remember** | Saves preferences ("I prefer formal emails") and applies them to later answers. View, edit and delete memories |
 | **Schedule** | "Every morning at 9, summarize my inbox" runs in the background with retries, pause and resume, notifications and a full history |
 | **Browse** | A controlled in-app browser with search, find in page, reader view, bookmarks, and AI actions that summarize or answer questions about the open page |
@@ -54,7 +54,7 @@ flowchart LR
     A -- reasoning --> G[(Gemini)]
     A -- executes --> T[Tools: email, memory, scheduler, browser]
     T --> M{Mail}
-    M -- shared test inbox / own Gmail --> B[Backend + Gmail API]
+    M -- test account / own Gmail --> B[Backend + Gmail API]
     M -- demo --> D[Sample mailbox]
     S[WorkManager] -- wakes later --> A
 ```
@@ -108,7 +108,7 @@ docs/                    Documentation and logo
 ## Known limitations
 
 - WorkManager is durable but not exact to the minute; Android may delay tasks.
-- `gmail.readonly` is a Google restricted scope: your own Gmail must be an OAuth test user until the app is verified. The shared test inbox and the demo mailbox avoid this for evaluation.
+- `gmail.readonly` is a Google restricted scope: your own Gmail must be an OAuth test user until the app is verified. The test account and the demo mailbox avoid this for evaluation.
 - Memory search matches words, not meaning.
 - The controlled browser is not a hardened sandbox; avoid sign-in or payment pages.
 - A Gemini key bundled into an APK can be extracted; production should proxy Gemini through the backend.

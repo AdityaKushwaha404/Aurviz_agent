@@ -4,10 +4,12 @@ import com.aurviz.agent.core.security.SecurePreferences
 import com.aurviz.agent.data.remote.BackendAuthManager
 
 /**
- * Switches between the three mailbox sources and keeps the backend session consistent:
- *  - SHARED: real Gmail on the shared test account; one tap, no credentials.
- *  - DEMO: offline sample mailbox.
- *  - OWN: the user's own Gmail through Google sign-in.
+ * Switches between the three mailbox sources:
+ *  - TEST: real Gmail on the shared test account (reviewers sign in with the credentials shown in the app),
+ *  - OWN: the user's own Gmail,
+ *  - DEMO: the offline sample mailbox.
+ * TEST and OWN both use Google sign-in; they differ only in the guidance shown. Switching between them
+ * ends the current sign-in so the next account starts cleanly. Switching to DEMO keeps the sign-in.
  */
 class MailSourceManager(
     private val preferences: SecurePreferences,
@@ -15,33 +17,13 @@ class MailSourceManager(
 ) {
     val source = preferences.mailSource
 
-    /** Tries the shared test inbox. On failure the previous source stays selected. */
-    suspend fun useShared(): Result<String> {
-        val previous = preferences.mailSource.value
-        if (previous == SecurePreferences.SOURCE_OWN) auth.disconnectKeepingAccount()
-        val result = auth.connectSharedTestAccount()
-        if (result.isSuccess) preferences.setMailSource(SecurePreferences.SOURCE_SHARED)
-        return result
-    }
-
-    fun useDemo() = preferences.setMailSource(SecurePreferences.SOURCE_DEMO)
-
-    /** Switches to the user's own Gmail. A shared session is ended so the Connect button shows. */
-    suspend fun useOwn() {
-        if (preferences.mailSource.value == SecurePreferences.SOURCE_SHARED) auth.disconnectKeepingAccount()
-        preferences.setMailSource(SecurePreferences.SOURCE_OWN)
-        auth.refreshConnectionState()
-    }
-
-    /** Called at launch: if the shared inbox is selected, make sure a session exists. */
-    suspend fun ensureSession() {
-        if (preferences.mailSource.value == SecurePreferences.SOURCE_SHARED &&
-            preferences.getBackendAccessToken().isNullOrBlank()
-        ) auth.connectSharedTestAccount()
-    }
-
-    companion object {
-        /** The shared test inbox shown to reviewers. The account itself is held on the server, never in the app. */
-        const val SHARED_TEST_EMAIL = "adityatesting404@gmail.com"
+    suspend fun select(target: String) {
+        val current = preferences.mailSource.value
+        val realAccounts = setOf(SecurePreferences.SOURCE_TEST, SecurePreferences.SOURCE_OWN)
+        if (current != target && current in realAccounts && target in realAccounts) {
+            auth.disconnectKeepingAccount()
+        }
+        preferences.setMailSource(target)
+        if (target in realAccounts) auth.refreshConnectionState()
     }
 }

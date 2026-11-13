@@ -3,7 +3,6 @@ package com.aurviz.agent.presentation.mailbox
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurviz.agent.core.security.SecurePreferences
-import com.aurviz.agent.data.mail.MailSourceManager
 import com.aurviz.agent.domain.mail.MailGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,7 +37,7 @@ data class MailboxUiState(
     val detailLoading: Boolean = false
 )
 
-/** Shows whichever mailbox is selected (shared test inbox, demo mailbox or the user's Gmail) and refreshes live. */
+/** Shows the demo mailbox (Inbox, Sent, Drafts) and refreshes live when Aurviz drafts or sends. */
 class MailboxViewModel(
     private val mail: MailGateway,
     private val preferences: SecurePreferences
@@ -118,9 +117,5 @@ class MailboxViewModel(
             "Gmail access needs to be reconnected. Open Settings, Mailbox."
         error is java.io.IOException -> "Could not reach the mail service. Check your connection and refresh."
         else -> error.message ?: "Could not load this mailbox."
-    }
-
-    companion object {
-        val SHARED_EMAIL = MailSourceManager.SHARED_TEST_EMAIL
     }
 }

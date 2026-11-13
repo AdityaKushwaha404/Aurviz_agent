@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 class AgentViewModel(
     private val orchestrator: AgentOrchestrator,
     private val voiceManager: VoiceManager,
-    private val securePreferences: SecurePreferences
+    private val securePreferences: SecurePreferences,
+    private val backendAuthManager: com.aurviz.agent.data.remote.BackendAuthManager? = null
 ) : ViewModel() {
 
     val messages: StateFlow<List<AgentMessage>> = orchestrator.messages
@@ -38,6 +39,9 @@ class AgentViewModel(
     }
 
     val mailSource = securePreferences.mailSource
+
+    /** True when a Gmail session exists; used to show a "sign in" hint for the test and own-Gmail sources. */
+    val gmailConnectionState = backendAuthManager?.connectionState
 
     fun sendPrompt(prompt: String, isVoice: Boolean = false, attachment: String? = null) {
         viewModelScope.launch {

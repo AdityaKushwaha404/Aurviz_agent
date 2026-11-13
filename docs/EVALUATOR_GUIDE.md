@@ -1,12 +1,12 @@
 # Evaluator Guide
 
-Test every feature of Aurviz in about ten minutes. **You do not need a password, a Google account or any setup.** Aurviz offers three mailboxes; the recommended one needs a single tap.
+Test every feature of Aurviz in about ten minutes. **You do not need a password, a Google account or any setup.** Aurviz offers three mailboxes, and the credentials of a dedicated test Gmail account are shown inside the app.
 
 ## 1. Install and first launch
 
 1. Install the APK on an Android 8.0 or newer phone (allow "install unknown apps" for your file manager or browser).
 2. Open **Aurviz**. You see the animated logo, then a short walkthrough.
-3. On the last page, tap **Use the shared test inbox** (recommended). That is the only step.
+3. On the last page tap **Show me the sign-in steps**. Settings opens with the test account's **email and password** (tap the copy icons) and six numbered steps. Follow them (about one minute).
 4. Allow the microphone and notification permissions when asked.
 
 <table>
@@ -24,28 +24,35 @@ The AI key is built into the APK. If your build has none, open **Settings, AI mo
 
 | Mailbox | What it is | Credentials needed | Best for |
 |---|---|---|---|
-| **Shared test inbox** (default) | Real Gmail on a dedicated test account (`adityatesting404@gmail.com`). The server holds the Google grant; your phone gets a short-lived session | None. One tap | Seeing the real Gmail integration |
+| **Test Gmail account** (default) | Real Gmail on a dedicated throwaway account (`adityatesting404@gmail.com`) | Email and password are shown in Settings, Mailbox, with copy buttons | Seeing the real Gmail integration |
+| **My own Gmail** | Your own account through Google's sign-in page | Your own Google account (must be an OAuth test user, see section 6) | Using your own mail |
 | **Demo mailbox** | Ten sample emails stored on the phone. Fully offline | None | Trying everything with zero risk, including sending |
-| **My own Gmail** | Your own account through Google's sign-in page | Your own Google account (must be an OAuth test user, see section 6) | Using your real mail |
 
-Switch at any time in **Settings, Mailbox**. The header badge shows which one is active (**TEST INBOX** or **DEMO**).
+Switch at any time in **Settings, Mailbox**. The header badge shows which one is active (**TEST ACCOUNT** or **DEMO**).
 
 <table>
 <tr>
-<td align="center"><img src="screenshots/09-settings-appearance-mailbox.png" width="200"><br><sub>Settings: Appearance and Mailbox</sub></td>
-<td align="center"><img src="screenshots/10-settings-mailbox-options.png" width="200"><br><sub>Mailbox status and View mailbox</sub></td>
+<td align="center"><img src="screenshots/09-settings-appearance-mailbox.png" width="200"><br><sub>Test account: email and password</sub></td>
+<td align="center"><img src="screenshots/10-settings-test-account-steps.png" width="200"><br><sub>Six numbered sign-in steps</sub></td>
 </tr>
 </table>
 
-### Why the shared test inbox is safe
-Anyone with the APK can use it, so it is locked down on the server: it **can only send mail to itself**, it **cannot be disconnected or revoked** from the app, its sessions are short-lived and rate limited, and it is a throwaway account with no private data. You can try any request without affecting anyone.
+### Signing in to the test account (step by step)
+1. **Settings, Mailbox, Test Gmail account.** The email and password are shown; use the copy icons.
+2. Tap **Sign in with Google**. Your browser opens.
+3. Choose **Use another account**, paste the email, **Next**, paste the password, **Next**.
+4. Google shows **"Google hasn't verified this app"**. This is normal for a test app: tap **Continue** (or Advanced, then Go to Aurviz).
+5. Tick the Gmail permissions and tap **Continue**. You return to Aurviz, and the card shows **Connected as adityatesting404@gmail.com**.
+6. Ask Aurviz anything. To see the mail itself, open Gmail with the same login.
 
-### If the shared inbox is unavailable
-If the server is waking up or updating, the app says so and offers the **demo mailbox**, which works offline. Nothing else changes.
+If Google asks to "verify it's you" or blocks the sign-in (it can do this for a shared account), use the **Demo mailbox**.
 
-## 3. See what is in the mailbox
+### Why the test account is safe to share
+It is a throwaway account with no private data. On the server it **can only send mail to itself or to example.com / example.org / example.net addresses** (which reach no real person), and it **cannot be disconnected** from the app, so one reviewer cannot break it for another.
 
-Tap the **inbox icon** in the chat header (or **Settings, View mailbox**). The viewer shows **Inbox, Sent and Drafts**, with unread messages in bold. Tap a message to read it, then **Summarize with Aurviz**. In demo mode the viewer **updates live** as Aurviz drafts or sends, and the menu has **Reset demo mailbox**.
+## 3. See the demo mailbox
+
+The in-app mailbox viewer exists **only for the demo mailbox**. Real accounts are viewed in Gmail itself. With the demo mailbox selected, tap the **inbox icon** in the chat header (or **Settings, View demo mailbox**). The viewer shows **Inbox, Sent and Drafts**, with unread messages in bold. Tap a message to read it, then **Summarize with Aurviz**. In demo mode the viewer **updates live** as Aurviz drafts or sends, and the menu has **Reset demo mailbox**.
 
 <table>
 <tr>
@@ -66,7 +73,7 @@ Type each prompt, or tap the microphone and say it.
 | 2 | "Which of my emails are important and unread?" | The important, unread messages | FR-15 |
 | 3 | "Remember that I prefer formal emails" | A memory card; the Memory tab lists it | FR-05 |
 | 4 | "Draft an email to meera.rao@university.example asking about my grade, but don't send it" | A formal draft is saved; nothing is sent. Open the **Drafts** tab to see it | FR-06, 16 |
-| 5 | "Send an email to rahul@example.com saying I will be late" | An **approval dialog** with editable To, Subject and Body. Cancel sends nothing. Approve and it appears in **Sent** (the shared test inbox only accepts its own address; the demo mailbox accepts any) | FR-08 |
+| 5 | "Send an email to rahul@example.com saying I will be late" | An **approval dialog** with editable To, Subject and Body. Cancel sends nothing. Approve and it appears in **Sent** (the test account accepts only its own address and example.com addresses; the demo mailbox accepts any) | FR-08 |
 | 6 | "Every morning at 9 AM, check my important emails and summarize them" | Task created. Open **Tasks**, tap **Run now**; **History** shows the run | FR-10, 11, 13 |
 | 7 | "Forget my email tone preference" | Memory deleted | FR-07 |
 | 8 | "Open news.ycombinator.com and tell me the top 3 stories" | The in-app browser opens and the stories are listed | FR-09 |

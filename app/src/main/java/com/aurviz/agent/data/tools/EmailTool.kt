@@ -24,7 +24,7 @@ class EmailTool(
         val validationError = validate(recipient, subject, body)
         if (validationError != null) return failure(validationError)
         if (!mail.isConnected()) {
-            return failure("Choose a mailbox in Settings, Mailbox before sending email.")
+            return failure("Gmail is not signed in. Sign in under Settings, Mailbox, or switch to the Demo mailbox, before sending email.")
         }
         return ToolExecutionResponse(
             toolName = name,
@@ -48,7 +48,7 @@ class EmailTool(
         val body = payload["body"] as? String ?: ""
         validate(recipient, subject, body)?.let { return failure(it) }
         if (!mail.isConnected()) {
-            return failure("Choose a mailbox in Settings, Mailbox before sending email.")
+            return failure("Gmail is not signed in. Sign in under Settings, Mailbox, or switch to the Demo mailbox, before sending email.")
         }
 
         return try {

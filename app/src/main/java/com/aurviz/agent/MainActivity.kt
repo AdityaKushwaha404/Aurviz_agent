@@ -27,7 +27,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -55,7 +54,8 @@ class MainActivity : ComponentActivity() {
         val agentViewModel = AgentViewModel(
             orchestrator = app.agentOrchestrator,
             voiceManager = app.voiceManager,
-            securePreferences = app.securePreferences
+            securePreferences = app.securePreferences,
+            backendAuthManager = app.backendAuthManager
         )
         val memoryViewModel = MemoryViewModel(memoryRepository = app.memoryRepository)
         val tasksViewModel = TasksViewModel(schedulerRepository = app.taskSchedulerRepository)
@@ -81,32 +81,15 @@ class MainActivity : ComponentActivity() {
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (showOnboarding) {
-                        var connecting by remember { mutableStateOf(false) }
-                        var onboardingMessage by remember { mutableStateOf<String?>(null) }
                         val scope = rememberCoroutineScope()
                         OnboardingScreen(
-                            connecting = connecting,
-                            message = onboardingMessage,
                             onFinish = { source ->
                                 scope.launch {
-                                    onboardingMessage = null
-                                    when (source) {
-                                        "SHARED" -> {
-                                            connecting = true
-                                            val result = app.mailSourceManager.useShared()
-                                            connecting = false
-                                            if (result.isFailure) {
-                                                onboardingMessage = (result.exceptionOrNull()?.message
-                                                    ?: "The shared test inbox is not available.") +
-                                                    " Choose the offline demo mailbox instead."
-                                                return@launch
-                                            }
-                                        }
-                                        "DEMO" -> app.mailSourceManager.useDemo()
-                                        else -> app.mailSourceManager.useOwn()
-                                    }
+                                    app.mailSourceManager.select(source)
                                     app.securePreferences.setOnboardingDone()
                                     showOnboarding = false
+                                    // Sign-in steps live in Settings, so take test-account and own-Gmail users there.
+                                    if (source != "DEMO") pendingShortcut = "settings"
                                 }
                             }
                         )

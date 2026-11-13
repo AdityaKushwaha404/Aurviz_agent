@@ -68,22 +68,32 @@ fun AppNavigation(
             }
         }
     }
+    // Opens a bottom-bar tab the same way tapping it does, so tab back stacks never nest.
+    fun openTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     // Launcher shortcuts and text shared from other apps.
     LaunchedEffect(shortcut) {
         when (shortcut) {
-            "voice" -> { navController.navigate(Screen.Agent.route) { launchSingleTop = true }; agentViewModel.startVoiceInput() }
+            "voice" -> { openTab(Screen.Agent.route); agentViewModel.startVoiceInput() }
             "inbox" -> {
-                navController.navigate(Screen.Agent.route) { launchSingleTop = true }
+                openTab(Screen.Agent.route)
                 agentViewModel.sendPrompt("Check my important emails from the last 3 days and summarize them.")
             }
-            "tasks" -> navController.navigate(Screen.Tasks.route) { launchSingleTop = true }
+            "tasks" -> openTab(Screen.Tasks.route)
+            "settings" -> openTab(Screen.Settings.route)
             "browser" -> navController.navigate("browser?url=") { launchSingleTop = true }
         }
         if (shortcut != null) onShortcutHandled()
     }
     LaunchedEffect(sharedText) {
         if (sharedText != null) {
-            navController.navigate(Screen.Agent.route) { launchSingleTop = true }
+            openTab(Screen.Agent.route)
             agentViewModel.sendPrompt("Summarize the text I shared with Aurviz.", attachment = sharedText.take(8_000))
             onSharedTextHandled()
         }
@@ -146,7 +156,8 @@ fun AppNavigation(
                 AgentScreen(
                     viewModel = agentViewModel,
                     onOpenBrowser = { navController.navigate("browser?url=") },
-                    onOpenMailbox = { navController.navigate(Screen.Mailbox.route) { launchSingleTop = true } }
+                    onOpenMailbox = { navController.navigate(Screen.Mailbox.route) { launchSingleTop = true } },
+                    onOpenSettings = { openTab(Screen.Settings.route) }
                 )
             }
             composable(Screen.Memory.route) {

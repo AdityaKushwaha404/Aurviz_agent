@@ -23,32 +23,9 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     val mailSource: StateFlow<String> = securePreferences.mailSource
-    private val _mailBusy = MutableStateFlow(false)
-    val mailBusy: StateFlow<Boolean> = _mailBusy.asStateFlow()
-    private val _mailMessage = MutableStateFlow<String?>(null)
-    val mailMessage: StateFlow<String?> = _mailMessage.asStateFlow()
-
     fun selectMailSource(source: String) {
-        if (_mailBusy.value) return
-        _mailMessage.value = null
-        viewModelScope.launch {
-            _mailBusy.value = true
-            try {
-                when (source) {
-                    SecurePreferences.SOURCE_SHARED ->
-                        mailSourceManager?.useShared()?.onFailure {
-                            _mailMessage.value = (it.message ?: "The shared test inbox is not available.") +
-                                " You can switch to the demo mailbox instead."
-                        }
-                    SecurePreferences.SOURCE_DEMO -> mailSourceManager?.useDemo()
-                    else -> mailSourceManager?.useOwn()
-                }
-            } finally {
-                _mailBusy.value = false
-            }
-        }
+        viewModelScope.launch { mailSourceManager?.select(source) }
     }
-
 
     /** Measured on-device latency (median / p95) per metric, newest 1000 samples. */
     val performance: StateFlow<List<MetricSummary>> =

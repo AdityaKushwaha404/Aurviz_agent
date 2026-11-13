@@ -62,8 +62,6 @@ class AurvizApp : Application() {
         // Wake the hosted backend early so the first Gmail action is not slow.
         kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             backendApi.warmUp()
-            // With the shared test inbox selected, make sure this device has a session ready.
-            mailSourceManager.ensureSession()
         }
         database = AppDatabase.getInstance(this)
         memoryRepository = MemoryRepositoryImpl(database.memoryDao())

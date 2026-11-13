@@ -90,7 +90,8 @@ fun AgentScreen(
     viewModel: AgentViewModel,
     modifier: Modifier = Modifier,
     onOpenBrowser: () -> Unit = {},
-    onOpenMailbox: () -> Unit = {}
+    onOpenMailbox: () -> Unit = {},
+    onOpenSettings: () -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
@@ -100,6 +101,8 @@ fun AgentScreen(
     val rmsLevel by viewModel.rmsLevel.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
     val mailSource by viewModel.mailSource.collectAsState()
+    val gmailState by (viewModel.gmailConnectionState ?: kotlinx.coroutines.flow.MutableStateFlow("")).collectAsState()
+    val needsSignIn = mailSource != "DEMO" && !gmailState.startsWith("Connected as")
 
     var textInput by rememberSaveable { mutableStateOf("") }
     var showClearChatConfirmation by remember { mutableStateOf(false) }
@@ -157,7 +160,7 @@ fun AgentScreen(
                     if (mailSource != "OWN") {
                         Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
                             Text(
-                                if (mailSource == "DEMO") "DEMO" else "TEST INBOX",
+                                if (mailSource == "DEMO") "DEMO" else "TEST ACCOUNT",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -165,8 +168,11 @@ fun AgentScreen(
                             )
                         }
                     }
-                    IconButton(onClick = onOpenMailbox) {
-                        Icon(Icons.Default.Inbox, contentDescription = "Open mailbox", tint = MaterialTheme.colorScheme.primary)
+                    // Real accounts are viewed in Gmail itself; only the demo mailbox has an in-app viewer.
+                    if (mailSource == "DEMO") {
+                        IconButton(onClick = onOpenMailbox) {
+                            Icon(Icons.Default.Inbox, contentDescription = "Open demo mailbox", tint = MaterialTheme.colorScheme.primary)
+                        }
                     }
                     IconButton(onClick = onOpenBrowser) {
                         Icon(Icons.Default.Language, contentDescription = "Open browser", tint = MaterialTheme.colorScheme.primary)
@@ -195,10 +201,28 @@ fun AgentScreen(
             )
         }
     ) { paddingValues ->
+        Column(modifier = modifier.fillMaxSize().padding(paddingValues)) {
+        if (needsSignIn) {
+            Surface(color = MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        if (mailSource == "TEST") "Email features need a sign-in. The test account details are in Settings."
+                        else "Sign in to Gmail to use email features, or switch to the demo mailbox.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onOpenSettings) { Text("Open steps") }
+                }
+            }
+        }
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues)
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
         ) {
             if (messages.isEmpty()) {
                 EmptyState(onPick = { textInput = it })
@@ -260,6 +284,7 @@ fun AgentScreen(
                 onStopSpeaking = { viewModel.stopSpeaking() },
                 modifier = Modifier.fillMaxSize()
             )
+        }
         }
     }
 }

@@ -97,7 +97,7 @@ class SecurePreferences(context: Context) {
         _themeMode.value = mode
     }
 
-    /** Where mail comes from: SHARED (shared test inbox), DEMO (sample mailbox) or OWN (the user's Gmail). */
+    /** Where mail comes from: TEST (the shared test Gmail account), OWN (the user's Gmail) or DEMO (sample mailbox). */
     private val _mailSource = MutableStateFlow(initialMailSource())
     val mailSource: StateFlow<String> = _mailSource.asStateFlow()
 
@@ -106,22 +106,21 @@ class SecurePreferences(context: Context) {
     val demoMode: StateFlow<Boolean> = _demoMode.asStateFlow()
 
     fun isDemoMode(): Boolean = _mailSource.value == SOURCE_DEMO
-    fun isSharedSource(): Boolean = _mailSource.value == SOURCE_SHARED
 
     fun setMailSource(source: String) {
-        require(source in setOf(SOURCE_SHARED, SOURCE_DEMO, SOURCE_OWN))
+        require(source in setOf(SOURCE_TEST, SOURCE_DEMO, SOURCE_OWN))
         preferences.edit().putString(KEY_MAIL_SOURCE, source).apply()
         _mailSource.value = source
         _demoMode.value = source == SOURCE_DEMO
     }
 
     private fun initialMailSource(): String {
-        preferences.getString(KEY_MAIL_SOURCE, null)?.let { return it }
-        // Older builds only stored a demo flag. A fresh install defaults to the shared test inbox.
+        preferences.getString(KEY_MAIL_SOURCE, null)?.let { return if (it == "SHARED") SOURCE_TEST else it }
+        // Older builds only stored a demo flag. A fresh install starts with the test account.
         return when {
             preferences.getBoolean(KEY_DEMO_MODE, false) -> SOURCE_DEMO
             preferences.contains(KEY_DEMO_MODE) -> SOURCE_OWN
-            else -> SOURCE_SHARED
+            else -> SOURCE_TEST
         }
     }
 
@@ -132,7 +131,7 @@ class SecurePreferences(context: Context) {
     }
 
     companion object {
-        const val SOURCE_SHARED = "SHARED"
+        const val SOURCE_TEST = "TEST"
         const val SOURCE_DEMO = "DEMO"
         const val SOURCE_OWN = "OWN"
         private const val KEY_MAIL_SOURCE = "mail_source"

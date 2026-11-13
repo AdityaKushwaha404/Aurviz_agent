@@ -18,12 +18,20 @@ export function isSharedAccount(email, shared = sharedTestEmail()) {
   return typeof email === "string" && email.trim().toLowerCase() === shared;
 }
 
-/** Throws a 403 when a shared-account session tries to send to anyone but itself. */
+const NON_DELIVERABLE = /@(?:[a-z0-9-]+\.)*(?:example\.(?:com|org|net)|[a-z0-9-]+\.example|[a-z0-9-]+\.test)$/i;
+
+/** True for the test account itself and for reserved example addresses that reach no real person. */
+export function isAllowedTestRecipient(recipient, shared = sharedTestEmail()) {
+  const value = String(recipient ?? "").trim().toLowerCase();
+  return value === shared || NON_DELIVERABLE.test(value);
+}
+
+/** Throws a 403 when the shared test account tries to email a real third party. */
 export function assertRecipientAllowed(accountEmail, recipient, shared = sharedTestEmail()) {
   if (!isSharedAccount(accountEmail, shared)) return;
-  if (String(recipient ?? "").trim().toLowerCase() !== shared) {
+  if (!isAllowedTestRecipient(recipient, shared)) {
     throw Object.assign(
-      new Error(`The shared test inbox can only send mail to itself (${shared}). Use your own Gmail to email other people.`),
+      new Error(`The test account can only send to itself (${shared}) or to example.com addresses. Use your own Gmail to email other people.`),
       { status: 403 }
     );
   }

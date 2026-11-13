@@ -17,9 +17,14 @@ test("shared account detection is case-insensitive and env-overridable", () => {
   assert.equal(isSharedAccount(undefined, SHARED), false);
 });
 
-test("the shared inbox can only send to itself", () => {
+test("the test account can send to itself and to reserved example addresses only", () => {
   assert.doesNotThrow(() => assertRecipientAllowed(SHARED, "SHARED.inbox@example.com", SHARED));
-  assert.throws(() => assertRecipientAllowed(SHARED, "victim@example.com", SHARED), error => error.status === 403);
+  for (const ok of ["rahul@example.com", "meera@univ.example.org", "a@b.example", "x@host.test", "y@example.net"]) {
+    assert.doesNotThrow(() => assertRecipientAllowed(SHARED, ok, SHARED), ok);
+  }
+  for (const bad of ["victim@gmail.com", "boss@company.com", "evil@notexample.com", "a@example.com.evil.io"]) {
+    assert.throws(() => assertRecipientAllowed(SHARED, bad, SHARED), error => error.status === 403, bad);
+  }
 });
 
 test("normal accounts are not restricted", () => {
@@ -27,6 +32,6 @@ test("normal accounts are not restricted", () => {
   assert.doesNotThrow(() => assertCanDisconnect("me@example.com", SHARED));
 });
 
-test("the shared inbox cannot be disconnected", () => {
+test("the test account cannot be disconnected", () => {
   assert.throws(() => assertCanDisconnect(SHARED, SHARED), error => error.status === 403);
 });

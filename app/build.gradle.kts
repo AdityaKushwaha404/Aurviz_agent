@@ -7,6 +7,9 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val bundledGeminiKey: String = (localProperties.getProperty("gemini.api.key") ?: "").trim()
+// Reviewer test account shown inside the app. The password lives only in the git-ignored local.properties.
+val testAccountEmail: String = (localProperties.getProperty("test.account.email") ?: "adityatesting404@gmail.com").trim()
+val testAccountPassword: String = (localProperties.getProperty("test.account.password") ?: "").trim()
 
 plugins {
     alias(libs.plugins.android.application)
@@ -22,6 +25,8 @@ android {
     defaultConfig {
         applicationId = "com.aurviz.agent"
         buildConfigField("String", "GEMINI_API_KEY_DEFAULT", "\"$bundledGeminiKey\"")
+        buildConfigField("String", "TEST_ACCOUNT_EMAIL", "\"$testAccountEmail\"")
+        buildConfigField("String", "TEST_ACCOUNT_PASSWORD", "\"${testAccountPassword.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "API_BASE_URL", "\"https://aurviz-backend.onrender.com\"")
         // Stable Gemini model used by every AI request. Update here only.
         buildConfigField("String", "GEMINI_MODEL", "\"gemini-3.5-flash-lite\"")

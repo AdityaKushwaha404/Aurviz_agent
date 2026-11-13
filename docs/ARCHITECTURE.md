@@ -13,7 +13,7 @@ flowchart LR
     App -- WorkManager --> OS[Android OS<br/>background execution]
     App -- HTTPS pages --> Web[(Public web)]
     App -. demo mailbox .-> Demo[Built-in sample mailbox]
-    Backend -. shared test inbox .-> Shared[(Throwaway test Gmail<br/>self-send only)]
+    Backend -. test account .-> Shared[(Throwaway test Gmail<br/>restricted sending)]
 ```
 
 ## 2. Three separate concerns
@@ -151,43 +151,46 @@ The Gmail tools only know the `MailService` interface. A `MailGateway` chooses t
 ```mermaid
 flowchart LR
     T[Gmail tools: search, read, draft, send] --> G{MailGateway}
-    G -- Shared test inbox or My own Gmail --> B[BackendMailService]
+    G -- Test account or My own Gmail --> B[BackendMailService]
     G -- Demo mailbox --> D[DemoMailService]
     B --> API[Aurviz backend REST]
     API --> GM[(Gmail API)]
     D --> S[(Sample inbox + drafts + sent<br/>persisted on the phone)]
-    V[Mailbox viewer screen] --> G
+    V[Demo mailbox viewer] --> G
     G -- revision signal --> V
 ```
 
 | Source | Where the mail lives | Credentials | Notes |
 |---|---|---|---|
-| **Shared test inbox** (default) | A throwaway Gmail account; its Google grant is held by the backend | None for the reviewer | Restricted: can only send to itself, cannot be disconnected, short sessions |
-| **Demo mailbox** | App-private storage on the phone | None | Ten sample emails; drafts and sent mail persist; **Reset** restores the sample |
+| **Test Gmail account** (default) | A throwaway Gmail account | Email and password are shown in the app; the reviewer signs in on Google's page | Sends only to itself or example.com addresses; cannot be disconnected |
 | **My own Gmail** | The user's Google account | Google sign-in (OAuth) | Account must be an OAuth test user until the app is verified |
+| **Demo mailbox** | App-private storage on the phone | None | Ten sample emails; drafts and sent mail persist; **Reset** restores the sample |
 
-### The shared test inbox flow
+### Reviewer sign-in flow (test account)
 
 ```mermaid
 sequenceDiagram
     participant R as Reviewer
     participant App
+    participant Chrome as Browser
     participant Backend
-    participant Gmail
-    R->>App: tap "Use the shared test inbox"
-    App->>Backend: POST /api/v1/auth/shared-test (no credentials)
-    Backend->>Backend: look up the connected test account, create a short-lived session
-    Backend-->>App: opaque session token (only its hash is stored)
-    App->>Backend: GET /api/v1/gmail/messages?q=...
-    Backend->>Gmail: search using the server-held refresh token
-    Gmail-->>Backend: messages
-    Backend-->>App: results
+    participant Google
+    R->>App: Settings, Mailbox, Test Gmail account (email + password shown, copy buttons, 6 steps)
+    R->>App: tap "Sign in with Google"
+    App->>Chrome: open /auth/google
+    Chrome->>Google: consent (reviewer pastes email + password on Google's page)
+    Google-->>Backend: authorization code
+    Backend->>Backend: encrypt refresh token (AES-256-GCM)
+    Backend-->>App: aurviz://oauth/callback?code=ONE_TIME_CODE
+    App->>Backend: POST /auth/exchange
+    Backend-->>App: session token
+    App-->>R: "Connected as adityatesting404@gmail.com"
 ```
 
-No password or Google token is ever on the phone or in the app package. The server enforces the safeguards, so they cannot be bypassed by a modified app: `POST /emails/send` and `/emails/scheduled` reject any recipient other than the test account itself (403), `DELETE /auth/google` is refused for that account, session creation is rate limited (40 per hour per client) and sessions expire after 72 hours. If the server is unreachable the app offers the demo mailbox instead.
+The credentials are typed only on Google's own page, never into Aurviz. The email is public; the password is injected at build time from the git-ignored `local.properties`, so it is shown in the APK but never committed to the repository. The server enforces the safeguards, so they cannot be bypassed by a modified app: `POST /emails/send` and `/emails/scheduled` reject any recipient other than the test account itself or a reserved example address (`example.com`, `.org`, `.net`, `*.example`, `*.test`) with 403, and `DELETE /auth/google` is refused for that account.
 
-### The mailbox viewer
-One screen shows whichever mailbox is active with **Inbox, Sent and Drafts** tabs. It reads through the same `MailGateway`, so it works for all three sources. When Aurviz saves a draft or sends mail, the gateway raises a `revision` signal and the viewer reloads, so the screen **updates live**. Opening a message offers "Summarize with Aurviz", which passes the message to the agent as untrusted context.
+### The demo mailbox viewer
+One screen shows the demo mailbox with **Inbox, Sent and Drafts** tabs. When Aurviz saves a draft or sends mail, the gateway raises a `revision` signal and the viewer reloads, so the screen **updates live**. Real accounts are viewed in Gmail itself. Opening a message offers "Summarize with Aurviz", which passes the message to the agent as untrusted context.
 
 Real accounts use OAuth through the backend:
 
@@ -238,7 +241,7 @@ Database upgrades use explicit migrations (`MIGRATION_1_2`), so memories and tas
 | Stolen credentials | No passwords; OAuth with server-held refresh token (AES-256-GCM) |
 | Token on device | Keystore-backed encrypted preferences, excluded from backup |
 | Unwanted sending | Approval dialog for every send; background runs cannot send |
-| Abuse of the shared test inbox | Server-enforced self-send only, no disconnect, rate-limited short sessions, throwaway account |
+| Abuse of the shared test account | Server-enforced: sends only to itself or example addresses, no disconnect, throwaway account |
 | Header injection in mail | Recipient and subject reject line breaks (app and server) |
 | Replay or double send | Idempotency key per request; unique database constraint |
 | Abuse of the API | Rate limiting, Helmet headers, 32 KB body limit, schema validation |
@@ -266,4 +269,4 @@ Swapping the mail provider means implementing `MailService` once; the tools and 
 | WorkManager for scheduling | Persistent, battery-aware | Not exact to the minute |
 | Lexical memory search | Simple, fast, private | Not semantic; a vector index is a possible upgrade |
 | Demo mailbox | Lets anyone evaluate without credentials | Sample data only |
-| Shared test inbox | Real Gmail for reviewers with one tap | Needs the server-held grant to stay valid (an OAuth app in Testing status expires refresh tokens after 7 days, so publish the consent screen "In production") |
+| Test Gmail account | Reviewers use real Gmail with credentials shown in the app | Google may challenge a shared account; publish the consent screen so sign-in is not blocked, and keep the demo mailbox as a fallback |

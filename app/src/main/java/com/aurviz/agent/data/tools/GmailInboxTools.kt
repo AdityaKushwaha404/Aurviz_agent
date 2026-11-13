@@ -42,7 +42,9 @@ class GmailSearchTool(private val mail: MailService) : AgentTool {
 
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
         if (!mail.isConnected()) return notConnected(name)
-        val query = (arguments["query"] as? String)?.trim().orEmpty().ifBlank { "in:inbox newer_than:1d" }
+        // Empty or symbol-only queries (for example "{}") mean "recent inbox".
+        val query = (arguments["query"] as? String)?.trim().orEmpty()
+            .takeIf { q -> q.any { it.isLetterOrDigit() } } ?: "in:inbox newer_than:7d"
         val max = (arguments["maxResults"] as? Number)?.toInt() ?: 10
         return try {
             val result = mail.search(query, max)
@@ -138,5 +140,5 @@ class GmailDraftTool(
 private fun notConnected(tool: String) = ToolExecutionResponse(
     tool,
     isSuccess = false,
-    output = "No mailbox is connected. Ask the user to choose a mailbox in Settings, Mailbox (shared test inbox, demo mailbox or their own Gmail)."
+    output = "Gmail is not signed in. Tell the user to sign in under Settings, Mailbox (the sign-in steps are shown there), or to switch to the Demo mailbox."
 )

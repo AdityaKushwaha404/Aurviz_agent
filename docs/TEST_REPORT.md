@@ -15,7 +15,7 @@
 | Build | `assembleDebug` succeeds; CI runs tests and the build on every push |
 | Dependency audit | `npm audit` reports no known vulnerabilities |
 
-Not verified on the device (stated openly): speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); the real 09:00 trigger firing unattended overnight; and the **shared test inbox end to end**, because it needs the latest backend version deployed on the hosting service. Its server rules are unit-tested, and the app's failure path was verified (it reports the server as unreachable and offers the demo mailbox).
+Not verified on the device (stated openly): speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); the real 09:00 trigger firing unattended overnight; and the relaxed recipient rule (example.com addresses) on the deployed server, which needs the latest backend version deployed; its logic is unit-tested.
 
 ## 2. Automated tests
 
@@ -45,7 +45,7 @@ Not verified on the device (stated openly): speech input in the latest build; of
 
 | Suite | Tests | What it proves |
 |---|---:|---|
-| `shared-account.test.js` | 4 | Shared test inbox is detected case-insensitively; it can only send to itself; it cannot be disconnected; normal accounts are unrestricted |
+| `shared-account.test.js` | 4 | Test account detection; it may send only to itself or reserved example addresses (real third parties rejected); it cannot be disconnected; normal accounts are unrestricted |
 | `gmail-inbox.test.js` | 7 | MIME body extraction, HTML-to-text, header lookup, raw draft building and header-injection rejection, Google error mapping, result cap, disconnected-account error |
 | `validation.test.js` | 3 | Recipient, time zone and offset validation; injection rejected |
 | `token-vault.test.js` | 2 | Refresh-token encryption and tamper detection |
@@ -81,14 +81,16 @@ Tested on the physical device against the deployed backend.
 | D18 | FR-27, 28 | Open the mailbox viewer in demo mode | Inbox with unread in bold; tabs for Sent and Drafts | Pass |
 | D19 | FR-27 | Ask Aurviz to draft an email, then to send one, then open the Drafts and Sent tabs | The Drafts and Sent tabs show the new messages | Pass |
 | D20 | FR-28 | Settings, Mailbox: select Demo mailbox | Header badge DEMO; the agent uses the sample inbox | Pass |
-| D21 | FR-26 | Onboarding, tap "Use the shared test inbox" while the new backend is not deployed | A plain message and the demo option instead of a crash | Pass (failure path). Success path pending deploy |
+| D21 | FR-26 | Settings, Mailbox, Test Gmail account | Email, masked password with show/copy, six numbered steps | Pass |
+| D23 | FR-26 | Follow the steps: Sign in with Google, choose the test account, Continue past the unverified-app warning | Back in Aurviz showing "Connected as adityatesting404@gmail.com"; "Search my inbox" returns 15 real messages and a correct summary | Pass |
 | D22 | FR-20 | History after a manual run | Plain headline, duration and formatted summary | Pass |
 
 ### Defects found during device testing, and fixed
 | Defect | Fix |
 |---|---|
 | A background task could pop the browser screen open or wait for it | Screen-bound tools are refused in background runs; regression test added |
-| Error text "request failed (404)" shown when the shared inbox is unreachable | Replaced by a plain explanation that offers the demo mailbox |
+| Agent tab showed Settings after opening Settings from the sign-in banner (tab back stacks nested) | Links use the same tab navigation as the bottom bar |
+| Search label showed `'{}'` when the model sent an empty query | Symbol-only queries mean "recent inbox" |
 | Scheduler rewrote the model's instruction by keyword matching ("summarize" became "draft responses") | Instruction now stored unchanged; regression test added |
 | Background email tasks told the model the wrong account address | Removed the claim; the tools use the connected account |
 | A one-off network error left the Gmail status stuck on screen | Status re-checks on opening Settings; Retry button added |
@@ -125,7 +127,7 @@ Tested on the physical device against the deployed backend.
 | FR-23 Theme | n/a | D14 |
 | FR-24 Onboarding, shortcuts | n/a | D15 |
 | FR-25 Settings | n/a | D16 |
-| FR-26 Shared test inbox | `shared-account.test.js` | D21 (failure path); success path pending deploy |
+| FR-26 Test Gmail account | `shared-account.test.js` | D21, D23 |
 | FR-27 Mailbox viewer | `MailGatewayTest` | D18, D19 |
 | FR-28 Mailbox selection | `MailGatewayTest` | D20 |
 | NFR-01 Performance | `MetricMathTest` | D17 |

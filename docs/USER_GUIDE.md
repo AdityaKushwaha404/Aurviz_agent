@@ -12,11 +12,11 @@ Examples:
 
 ## Mailboxes
 Choose where Aurviz reads and writes mail in **Settings, Mailbox**:
-- **Shared test inbox** (default): real Gmail on a test account. No sign-in. It can only send to itself.
-- **Demo mailbox**: sample emails on your phone. Works offline.
+- **Test Gmail account** (default): a real Gmail account made for testing. The email, password and sign-in steps are shown in Settings. It can only send to itself or example.com addresses.
 - **My own Gmail**: sign in with Google.
+- **Demo mailbox**: sample emails on your phone. Works offline.
 
-Open the **inbox icon** in the chat header (or Settings, View mailbox) to see **Inbox, Sent and Drafts**. Tap a message to read it or have Aurviz summarize it. In the demo mailbox the lists update as soon as Aurviz drafts or sends, and the menu has **Reset demo mailbox**.
+For real accounts, open Gmail itself to see the mail. For the demo mailbox, open the **inbox icon** in the chat header (or Settings, View demo mailbox) to see **Inbox, Sent and Drafts**. Tap a message to read it or have Aurviz summarize it. The lists update as soon as Aurviz drafts or sends, and the menu has **Reset demo mailbox**.
 
 ## Email
 - **Search and read:** Aurviz uses Gmail search syntax internally (`from:`, `subject:`, `is:unread`, `newer_than:3d`).
@@ -55,7 +55,8 @@ Long-press the Aurviz icon for Voice command, Summarize inbox and Tasks. Share t
 |---|---|
 | "Could not reach Aurviz" | The hosted server may be waking up. Wait a few seconds and tap Retry |
 | "Gmail inbox access was not granted" | Settings, Mailbox, My own Gmail, Disconnect, then Connect Gmail again and approve all permissions |
-| "The shared test inbox is not reachable" | The server may be waking up. Retry, or choose the demo mailbox |
-| "The shared test inbox can only send mail to itself" | Expected. Use the demo mailbox or your own Gmail to email other people |
+| "Could not reach Aurviz" when signing in | The server may be waking up. Wait a few seconds and Retry |
+| "The test account can only send to itself…" | Expected. Use the demo mailbox or your own Gmail to email other people |
+| Google asks to verify it's you | Use the Demo mailbox |
 | "Gemini API key is not configured" | Add a key in Settings, AI model |
 | Task ran late | Normal Android battery behaviour; use Run now for immediate execution |

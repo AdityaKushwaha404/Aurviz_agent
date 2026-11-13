@@ -90,9 +90,9 @@ Priority: **P0** must have, **P1** should have, **P2** nice to have.
 | FR-22 | **AI on web pages.** Summarize, extract key facts, explain or ask about the open page | P1 | Tapping Summarize returns to chat with a summary of that page | Device |
 | FR-23 | **Theme.** Choose System, Light or Dark | P1 | The choice applies immediately and persists | Device |
 | FR-24 | **Onboarding and shortcuts.** First-run walkthrough, launcher shortcuts, share text to Aurviz | P2 | Onboarding appears once; long-pressing the icon lists shortcuts; sharing text opens a summary | Device |
-| FR-26 | **Shared test inbox.** Real Gmail for reviewers with one tap and no credentials | P0 | Choosing it connects without any sign-in; search, read and draft work; mail can only be sent to the test account itself; it cannot be disconnected | `shared-account.test.js`; device (pending server deploy) |
-| FR-27 | **Mailbox viewer.** See the active mailbox's Inbox, Sent and Drafts, read messages, and watch them update | P0 | The viewer lists messages for all three sources; a draft or sent message saved by the agent appears without leaving the screen; demo can be reset | `MailGatewayTest`; device |
-| FR-28 | **Mailbox selection.** Choose Shared test inbox, Demo mailbox or My own Gmail at any time | P0 | The selection persists, the header badge reflects it, and the agent uses the selected mailbox immediately | `MailGatewayTest`; device |
+| FR-26 | **Test Gmail account for reviewers.** The app shows the test account's email, password and numbered sign-in steps | P0 | A reviewer follows the steps, signs in on Google's page and sees "Connected as…"; search, read and draft work; mail can only be sent to the account itself or example.com addresses; it cannot be disconnected | `shared-account.test.js`; device |
+| FR-27 | **Demo mailbox viewer.** See the demo mailbox's Inbox, Sent and Drafts, read messages, and watch them update | P0 | A draft or sent message saved by the agent appears without leaving the screen; demo can be reset. Real accounts are viewed in Gmail | `MailGatewayTest`; device |
+| FR-28 | **Mailbox selection.** Choose Test Gmail account, My own Gmail or Demo mailbox at any time | P0 | The selection persists, the header badge reflects it, and the agent uses the selected mailbox immediately | `MailGatewayTest`; device |
 | FR-25 | **Settings and permissions.** Manage key, default recipient, spoken replies, Gmail and system permissions | P1 | All settings persist across restarts | Device |
 
 ---
@@ -111,7 +111,7 @@ Priority: **P0** must have, **P1** should have, **P2** nice to have.
 | NFR-08 | Usability | Intuitive interface | One-tap mic, live "what the agent is doing" status, tool timeline, approval dialogs, onboarding, dark mode |
 | NFR-09 | Resource efficiency | Low battery and memory impact | WorkManager only (no persistent service), network constraints, bounded tables and context |
 | NFR-10 | Compatibility | Wide device support | minSdk 26, adaptive and themed icon, runtime permissions, tested on Android 16 |
-| NFR-12 | Safe shared access | A reviewer-facing account must not be abusable | Server-enforced: self-send only, no disconnect, rate-limited short sessions; throwaway account |
+| NFR-12 | Safe shared access | A reviewer-facing account must not be abusable | Server-enforced: sends only to itself or example.com addresses, no disconnect; throwaway account |
 | NFR-11 | Privacy | Minimise data exposure | Page and text attachments are sent only when the user triggers an action; demo mode never contacts Gmail |
 
 ---

@@ -17,12 +17,12 @@ class BackendAuthManager(
     private val _connectionState = MutableStateFlow("Gmail not connected")
     val connectionState: StateFlow<String> = _connectionState.asStateFlow()
 
-    fun isConnected(): Boolean = securePreferences.isSharedSource() || !securePreferences.getBackendAccessToken().isNullOrBlank()
+    fun isConnected(): Boolean = !securePreferences.getBackendAccessToken().isNullOrBlank()
 
     suspend fun sendEmail(recipient: String, subject: String, body: String, idempotencyKey: String) =
         withContext(Dispatchers.IO) {
             val token = currentAccessToken()
-                ?: throw IOException("Connect Gmail in Settings before sending email.")
+                ?: throw IOException("Sign in under Settings, Mailbox before sending email.")
             api.sendEmail(token, recipient, subject, body, idempotencyKey)
         }
 
@@ -35,7 +35,7 @@ class BackendAuthManager(
         idempotencyKey: String
     ) = withContext(Dispatchers.IO) {
         val token = currentAccessToken()
-            ?: throw IOException("Connect Gmail in Settings before scheduling email.")
+            ?: throw IOException("Sign in under Settings, Mailbox before scheduling email.")
         api.scheduleEmail(token, recipient, subject, body, scheduledAt, timeZone, idempotencyKey)
     }
 
@@ -52,30 +52,7 @@ class BackendAuthManager(
     }
 
     private suspend fun requireToken(): String = currentAccessToken()
-        ?: throw IOException("Connect Gmail in Settings first.")
-
-    /**
-     * Connects to the shared test inbox (real Gmail, no credentials). Returns a user-readable error
-     * on failure so the UI can offer the demo mailbox instead.
-     */
-    suspend fun connectSharedTestAccount(): Result<String> = withContext(Dispatchers.IO) {
-        _connectionState.value = "Connecting to the shared test inbox…"
-        try {
-            val session = api.startSharedSession()
-            securePreferences.saveBackendSession(session.accessToken, Instant.parse(session.expiresAt).toEpochMilli())
-            _connectionState.value = "Connected as ${session.email}"
-            Result.success(session.email)
-        } catch (error: Exception) {
-            val message = when {
-                error is BackendApiException && (error.statusCode == 404 || error.statusCode >= 500 && error.statusCode != 503) ->
-                    "The shared test inbox is not reachable right now. The server may be waking up or updating."
-                error is BackendApiException -> error.message ?: "The shared test inbox is not available right now."
-                else -> safeMessage(error)
-            }
-            _connectionState.value = message
-            Result.failure(IOException(message))
-        }
-    }
+        ?: throw IOException("Sign in under Settings, Mailbox first.")
 
     /** Signs this device out of whichever backend session it holds without touching the server-side account. */
     suspend fun disconnectKeepingAccount() = withContext(Dispatchers.IO) {
@@ -135,10 +112,14 @@ class BackendAuthManager(
     suspend fun disconnect() = withContext(Dispatchers.IO) {
         val accessToken = securePreferences.getBackendAccessToken()
         try {
-            if (securePreferences.isSharedSource()) {
-                // The shared inbox belongs to the server; only end this device's session.
-                if (!accessToken.isNullOrBlank()) runCatching { api.revokeSession(accessToken) }
-            } else if (!accessToken.isNullOrBlank()) api.disconnect(accessToken)
+            if (!accessToken.isNullOrBlank()) {
+                try {
+                    api.disconnect(accessToken)
+                } catch (error: BackendApiException) {
+                    // The shared test account can never be revoked; just end this device's session.
+                    if (error.statusCode == 403) runCatching { api.revokeSession(accessToken) } else throw error
+                }
+            }
             securePreferences.clearBackendAccessToken()
             _connectionState.value = "Gmail not connected"
         } catch (error: Exception) {
@@ -147,19 +128,8 @@ class BackendAuthManager(
     }
 
     private suspend fun currentAccessToken(): String? {
-        val shared = securePreferences.isSharedSource()
-        var accessToken = securePreferences.getBackendAccessToken()?.takeIf(String::isNotBlank)
-        val expiresAt = securePreferences.getBackendSessionExpiresAt()
-        if (shared) {
-            // Shared sessions are short-lived: start a fresh one instead of rotating.
-            if (accessToken == null || expiresAt <= System.currentTimeMillis() + 60_000) {
-                connectSharedTestAccount().getOrNull()
-                accessToken = securePreferences.getBackendAccessToken()?.takeIf(String::isNotBlank)
-            }
-            return accessToken
-        }
-        accessToken ?: return null
-        if (expiresAt <= System.currentTimeMillis() + REFRESH_WINDOW_MS) {
+        val accessToken = securePreferences.getBackendAccessToken()?.takeIf(String::isNotBlank) ?: return null
+        if (securePreferences.getBackendSessionExpiresAt() <= System.currentTimeMillis() + REFRESH_WINDOW_MS) {
             val refreshed = api.refreshSession(accessToken)
             securePreferences.saveBackendSession(refreshed.accessToken, Instant.parse(refreshed.expiresAt).toEpochMilli())
             return refreshed.accessToken
