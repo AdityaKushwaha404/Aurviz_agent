@@ -251,14 +251,14 @@ private fun PerformancePanel(metrics: List<MetricSummary>, onClear: () -> Unit) 
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(modifier = Modifier.fillMaxWidth()) {
-                Text("Metric", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(1.6f))
+                Text("Metric", fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(2.2f))
                 listOf("n", "median", "p95", "ok").forEach {
                     Text(it, fontSize = 11.sp, color = TextSecondary, modifier = Modifier.weight(0.8f))
                 }
             }
             metrics.forEach { metric ->
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(metricLabel(metric.metric), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1.6f))
+                    Text(metricLabel(metric.metric), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(2.2f))
                     Text("${metric.count}", fontSize = 12.sp, modifier = Modifier.weight(0.8f))
                     Text(formatMs(metric.medianMs), fontSize = 12.sp, modifier = Modifier.weight(0.8f))
                     Text(formatMs(metric.p95Ms), fontSize = 12.sp, modifier = Modifier.weight(0.8f))
