@@ -37,9 +37,11 @@ class AgentViewModel(
         }
     }
 
-    fun sendPrompt(prompt: String, isVoice: Boolean = false) {
+    val demoMode = securePreferences.demoMode
+
+    fun sendPrompt(prompt: String, isVoice: Boolean = false, attachment: String? = null) {
         viewModelScope.launch {
-            orchestrator.processUserPrompt(prompt, isVoice)
+            orchestrator.processUserPrompt(prompt, isVoice, attachment)
         }
     }
 

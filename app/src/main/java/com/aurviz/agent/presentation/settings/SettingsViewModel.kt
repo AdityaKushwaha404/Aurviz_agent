@@ -43,7 +43,14 @@ class SettingsViewModel(
         viewModelScope.launch { backendAuthManager.disconnect() }
     }
 
-    private val _apiKey = MutableStateFlow(securePreferences.getGeminiApiKey())
+    val themeMode: StateFlow<String> = securePreferences.themeMode
+    val demoMode: StateFlow<Boolean> = securePreferences.demoMode
+    val usesBuiltInKey: Boolean get() = securePreferences.hasBuiltInGeminiKey
+
+    fun setThemeMode(mode: String) = securePreferences.setThemeMode(mode)
+    fun setDemoMode(enabled: Boolean) = securePreferences.setDemoMode(enabled)
+
+    private val _apiKey = MutableStateFlow(securePreferences.getUserGeminiApiKey())
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
     private val _defaultEmail = MutableStateFlow(securePreferences.getDefaultEmail())

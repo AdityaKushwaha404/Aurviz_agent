@@ -9,3 +9,6 @@ GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
 
 # Optional: Default Email Account for testing
 DEFAULT_TEST_EMAIL=user@example.com
+
+# Optional: bundle a Gemini API key into the APK so evaluators need no setup (never commit this file)
+gemini.api.key=

@@ -1,5 +1,10 @@
 package com.aurviz.agent.presentation.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
 import com.aurviz.agent.presentation.theme.SurfaceLight
@@ -46,7 +51,12 @@ fun AppNavigation(
     tasksViewModel: TasksViewModel,
     settingsViewModel: SettingsViewModel,
     browserAgentController: BrowserAgentController,
-    onConnectGmail: () -> Unit
+    browserStore: com.aurviz.agent.service.web.BrowserStore,
+    onConnectGmail: () -> Unit,
+    shortcut: String? = null,
+    onShortcutHandled: () -> Unit = {},
+    sharedText: String? = null,
+    onSharedTextHandled: () -> Unit = {}
 ) {
     val navController = rememberNavController()
     LaunchedEffect(browserAgentController, navController) {
@@ -56,6 +66,27 @@ fun AppNavigation(
             }
         }
     }
+    // Launcher shortcuts and text shared from other apps.
+    LaunchedEffect(shortcut) {
+        when (shortcut) {
+            "voice" -> { navController.navigate(Screen.Agent.route) { launchSingleTop = true }; agentViewModel.startVoiceInput() }
+            "inbox" -> {
+                navController.navigate(Screen.Agent.route) { launchSingleTop = true }
+                agentViewModel.sendPrompt("Check my important emails from the last 3 days and summarize them.")
+            }
+            "tasks" -> navController.navigate(Screen.Tasks.route) { launchSingleTop = true }
+            "browser" -> navController.navigate("browser?url=") { launchSingleTop = true }
+        }
+        if (shortcut != null) onShortcutHandled()
+    }
+    LaunchedEffect(sharedText) {
+        if (sharedText != null) {
+            navController.navigate(Screen.Agent.route) { launchSingleTop = true }
+            agentViewModel.sendPrompt("Summarize the text I shared with Aurviz.", attachment = sharedText.take(8_000))
+            onSharedTextHandled()
+        }
+    }
+
     val items = listOf(
         Screen.Agent,
         Screen.Memory,
@@ -103,7 +134,11 @@ fun AppNavigation(
         NavHost(
             navController = navController,
             startDestination = Screen.Agent.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(tween(240)) + slideInVertically(tween(280)) { it / 28 } },
+            exitTransition = { fadeOut(tween(140)) },
+            popEnterTransition = { fadeIn(tween(240)) },
+            popExitTransition = { fadeOut(tween(140)) + slideOutVertically(tween(220)) { it / 28 } }
         ) {
             composable(Screen.Agent.route) {
                 AgentScreen(viewModel = agentViewModel, onOpenBrowser = {
@@ -128,7 +163,12 @@ fun AppNavigation(
                 ControlledBrowserScreen(
                     initialUrl = initialUrl,
                     controller = browserAgentController,
-                    onBack = { navController.popBackStack() }
+                    store = browserStore,
+                    onBack = { navController.popBackStack() },
+                    onAskAgent = { prompt, attachment ->
+                        navController.popBackStack()
+                        agentViewModel.sendPrompt(prompt, attachment = attachment)
+                    }
                 )
             }
         }

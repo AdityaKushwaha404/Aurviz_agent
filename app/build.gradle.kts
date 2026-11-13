@@ -1,3 +1,13 @@
+import java.util.Properties
+
+// Optional build-time Gemini key (kept in the git-ignored local.properties) so an APK handed to
+// evaluators works out of the box. Never commit the key.
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+val bundledGeminiKey: String = (localProperties.getProperty("gemini.api.key") ?: "").trim()
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -11,6 +21,7 @@ android {
 
     defaultConfig {
         applicationId = "com.aurviz.agent"
+        buildConfigField("String", "GEMINI_API_KEY_DEFAULT", "\"$bundledGeminiKey\"")
         buildConfigField("String", "API_BASE_URL", "\"https://aurviz-backend.onrender.com\"")
         // Stable Gemini model used by every AI request. Update here only.
         buildConfigField("String", "GEMINI_MODEL", "\"gemini-3.5-flash-lite\"")
@@ -28,6 +39,7 @@ android {
 
     buildTypes {
         release {
+            resValue("string", "shortcut_package", "com.aurviz.agent")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -36,6 +48,7 @@ android {
         }
         debug {
             applicationIdSuffix = ".debug"
+            resValue("string", "shortcut_package", "com.aurviz.agent.debug")
             isDebuggable = true
         }
     }

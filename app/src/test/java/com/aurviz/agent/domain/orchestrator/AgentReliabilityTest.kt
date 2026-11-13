@@ -151,6 +151,37 @@ class AgentReliabilityTest {
         assertTrue(recorder.samples.first { it.first == PerformanceRecorder.AGENT_TURN }.third)
     }
 
+    @Test
+    fun meaninglessFinalAnswerIsRetriedOnceThenShownProperly() = runBlocking {
+        val client = AgentOrchestratorTest.FakeGeminiClient().apply {
+            responses += GeminiAgentResponse.Success("-")
+            responses += GeminiAgentResponse.Success("You have one interview on Monday at 10:30.")
+        }
+        val orchestrator = AgentOrchestrator(client, ToolRegistry(emptyList()), memories)
+
+        orchestrator.processUserPrompt("Summarize my interviews")
+
+        assertEquals(2, client.callCount)
+        assertEquals(
+            "You have one interview on Monday at 10:30.",
+            (orchestrator.messages.value.last() as AgentMessage.AgentResponse).text
+        )
+    }
+
+    @Test
+    fun repeatedlyEmptyAnswerBecomesARetryableError() = runBlocking {
+        val client = AgentOrchestratorTest.FakeGeminiClient().apply {
+            nextResponse = GeminiAgentResponse.Success("...")
+        }
+        val orchestrator = AgentOrchestrator(client, ToolRegistry(emptyList()), memories)
+
+        orchestrator.processUserPrompt("Summarize my interviews")
+
+        val last = orchestrator.messages.value.last()
+        assertTrue(last is AgentMessage.ErrorMessage)
+        assertEquals("Summarize my interviews", (last as AgentMessage.ErrorMessage).retryPrompt)
+    }
+
     private class RecordingPerformance : PerformanceRecorder {
         val samples = mutableListOf<Triple<String, Long, Boolean>>()
         override suspend fun record(metric: String, durationMs: Long, success: Boolean) {

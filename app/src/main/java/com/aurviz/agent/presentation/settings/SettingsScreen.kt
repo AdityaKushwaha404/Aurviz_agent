@@ -42,6 +42,8 @@ fun SettingsScreen(
     val voiceFeedback by viewModel.voiceFeedback.collectAsState()
     val storageMessage by viewModel.storageMessage.collectAsState()
     val performance by viewModel.performance.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    val demoMode by viewModel.demoMode.collectAsState()
     val context = LocalContext.current
 
     var keyInput by remember(currentApiKey) { mutableStateOf(currentApiKey) }
@@ -81,6 +83,30 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ---- Appearance ----
+            SettingsSection(title = "Appearance", icon = Icons.Default.Palette) {
+                Text(
+                    "Choose how Aurviz looks. System default follows your phone's setting.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    val options = listOf(
+                        Triple("SYSTEM", "System", Icons.Default.PhoneAndroid),
+                        Triple("LIGHT", "Light", Icons.Default.LightMode),
+                        Triple("DARK", "Dark", Icons.Default.DarkMode)
+                    )
+                    options.forEachIndexed { index, (value, label, icon) ->
+                        SegmentedButton(
+                            selected = themeMode == value,
+                            onClick = { viewModel.setThemeMode(value) },
+                            shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                            icon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                        ) { Text(label) }
+                    }
+                }
+            }
+
             // ---- Gmail ----
             SettingsSection(title = "Gmail", icon = Icons.Default.Email) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -105,6 +131,20 @@ fun SettingsScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Demo mailbox", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "Use a built-in sample inbox (interviews, assignments, alerts). No Google account needed, " +
+                                "and nothing is ever sent to a real address.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(checked = demoMode, onCheckedChange = { viewModel.setDemoMode(it) })
+                }
                 if (isConnected) {
                     OutlinedButton(onClick = onDisconnectGmail) { Text("Disconnect") }
                 } else {
@@ -137,7 +177,9 @@ fun SettingsScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
                 Text(
-                    "Stored in Android Keystore-backed encrypted storage and excluded from backups.",
+                    if (viewModel.usesBuiltInKey && keyInput.isBlank())
+                        "Using the key bundled with this build. Enter your own to override it."
+                    else "Stored in Android Keystore-backed encrypted storage and excluded from backups.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

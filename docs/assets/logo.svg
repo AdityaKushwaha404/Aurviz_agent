@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4338CA"/>
+      <stop offset="0.55" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#0EA5E9"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="28" cy="20" r="74" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="sq"><rect width="108" height="108" rx="24"/></clipPath>
+  </defs>
+  <g clip-path="url(#sq)">
+    <rect width="108" height="108" fill="url(#bg)"/>
+    <rect width="108" height="108" fill="url(#glow)"/>
+  </g>
+  <path d="M35,83.5 L54,29.5 L73,83.5" fill="none" stroke="#000" stroke-opacity="0.2" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M35,82 L54,28 L73,82" fill="none" stroke="#fff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path fill="#fff" d="M54,56 C55.2,62.8 57.2,64.8 63,66 C57.2,67.2 55.2,69.2 54,76 C52.8,69.2 50.8,67.2 45,66 C50.8,64.8 52.8,62.8 54,56 Z"/>
+  <path fill="#fff" fill-opacity="0.9" d="M77,29 C77.6,32.4 78.6,33.4 82,34 C78.6,34.6 77.6,35.6 77,39 C76.4,35.6 75.4,34.6 72,34 C75.4,33.4 76.4,32.4 77,29 Z"/>
+</svg>

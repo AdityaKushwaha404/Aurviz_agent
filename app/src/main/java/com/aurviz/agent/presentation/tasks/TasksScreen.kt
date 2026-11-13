@@ -21,7 +21,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.aurviz.agent.core.util.TimeUtils
+import com.aurviz.agent.domain.model.ExecutionLogFormatter
 import com.aurviz.agent.domain.model.ScheduledTask
+import com.aurviz.agent.presentation.components.MarkdownText
+import androidx.compose.ui.unit.Dp
 import com.aurviz.agent.domain.model.ScheduledTaskStatus
 import com.aurviz.agent.domain.model.TaskExecutionRecord
 import com.aurviz.agent.domain.model.TaskExecutionState
@@ -414,33 +417,17 @@ fun ScheduledTaskCard(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        if (showDetails) "Hide execution log" else "View execution result",
+                        if (showDetails) "Hide last result" else "View last result",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (isFailed) ErrorRed else PrimaryBlue
                     )
                 }
                 if (showDetails) {
-                    Surface(
-                        color = if (isFailed) ErrorRed.copy(alpha = 0.06f) else ToolBadgeBackground,
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(
-                                if (isFailed) {
-                                    Modifier.border(1.dp, ErrorRed.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                                } else {
-                                    Modifier
-                                }
-                            )
-                    ) {
-                        Text(
-                            text = ScheduledTaskStatus.messageOf(task.lastExecutionStatus),
-                            fontSize = 12.sp,
-                            color = if (isFailed) ErrorRed else TextSecondary,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
+                    ExecutionLogContent(
+                        state = executionState,
+                        message = ScheduledTaskStatus.messageOf(task.lastExecutionStatus)
+                    )
                 }
             }
 
@@ -582,20 +569,17 @@ private fun TaskHistoryList(history: List<TaskExecutionRecord>) {
                     }
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "${TimeUtils.formatDateTime(record.startedAt)} · ${formatDuration(record.durationMs)}" +
+                        relativeTime(record.startedAt) + " · took " + formatDuration(record.durationMs) +
                             if (record.attempt > 1) " · attempt ${record.attempt}" else "",
                         fontSize = 11.sp,
                         color = TextSecondary
                     )
-                    if (record.message.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            record.message,
-                            fontSize = 13.sp,
-                            color = TextPrimary,
-                            maxLines = if (expanded) Int.MAX_VALUE else 3,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            lineHeight = 18.sp
+                    if (record.message.isNotBlank() || record.state != TaskExecutionState.SUCCESS) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        ExecutionLogContent(
+                            state = record.state,
+                            message = record.message,
+                            collapsedLines = if (expanded) Int.MAX_VALUE else 4
                         )
                     }
                 }
@@ -607,3 +591,87 @@ private fun TaskHistoryList(history: List<TaskExecutionRecord>) {
 
 private fun formatDuration(ms: Long): String =
     if (ms < 1000) "${ms} ms" else String.format(java.util.Locale.US, "%.1f s", ms / 1000.0)
+
+
+/**
+ * Human-readable result of one run: a headline, a plain explanation (Markdown for
+ * successful summaries), a suggested next step, and the raw technical text on demand.
+ */
+@Composable
+private fun ExecutionLogContent(
+    state: TaskExecutionState,
+    message: String,
+    collapsedLines: Int = Int.MAX_VALUE
+) {
+    val log = remember(state, message) { ExecutionLogFormatter.format(state, message) }
+    val isProblem = state == TaskExecutionState.FAILED || state == TaskExecutionState.RETRYING
+    val accent = when (state) {
+        TaskExecutionState.FAILED -> ErrorRed
+        TaskExecutionState.RETRYING -> WarningOrange
+        TaskExecutionState.SUCCESS -> SuccessGreen
+        else -> TextSecondary
+    }
+    var showTechnical by remember(message) { mutableStateOf(false) }
+
+    Surface(
+        color = accent.copy(alpha = 0.08f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                log.headline,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = accent
+            )
+            if (state == TaskExecutionState.SUCCESS) {
+                Box(modifier = Modifier.heightIn(max = if (collapsedLines == Int.MAX_VALUE) Dp.Unspecified else 96.dp)) {
+                    MarkdownText(markdown = log.body, color = TextPrimary)
+                }
+            } else {
+                Text(log.body, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            }
+            log.hint?.let {
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(Icons.Default.Lightbulb, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                }
+            }
+            if (isProblem && log.technical != null) {
+                Text(
+                    if (showTechnical) "Hide technical details" else "Technical details",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = PrimaryBlue,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clickable { showTechnical = !showTechnical }
+                )
+                if (showTechnical) {
+                    Text(
+                        log.technical,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** "Today, 11:17", "Yesterday, 09:00" or a short date, so history reads naturally. */
+private fun relativeTime(epochMillis: Long): String {
+    val now = java.util.Calendar.getInstance()
+    val then = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
+    val time = TimeUtils.formatTime(epochMillis)
+    val sameDay = { a: java.util.Calendar, b: java.util.Calendar ->
+        a.get(java.util.Calendar.YEAR) == b.get(java.util.Calendar.YEAR) &&
+            a.get(java.util.Calendar.DAY_OF_YEAR) == b.get(java.util.Calendar.DAY_OF_YEAR)
+    }
+    return when {
+        sameDay(now, then) -> "Today, $time"
+        sameDay(now.apply { add(java.util.Calendar.DAY_OF_YEAR, -1) }, then) -> "Yesterday, $time"
+        else -> TimeUtils.formatDateTime(epochMillis)
+    }
+}

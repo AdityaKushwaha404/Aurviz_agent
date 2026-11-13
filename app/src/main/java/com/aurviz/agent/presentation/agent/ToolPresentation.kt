@@ -31,6 +31,7 @@ object ToolPresentation {
         "scroll_page" -> "Scroll page"
         "navigate_back", "navigate_forward" -> "Navigate"
         "get_browser_state" -> "Check browser"
+        "extract_links" -> "Find links"
         else -> toolName.replace('_', ' ').replaceFirstChar { it.uppercase() }
     }
 
@@ -56,7 +57,7 @@ object ToolPresentation {
         "manage_memory" -> Icons.Default.Psychology
         "schedule_task" -> Icons.Default.Schedule
         "browse_web", "open_url", "search_webpage", "read_page", "click_element",
-        "enter_text", "scroll_page", "navigate_back", "navigate_forward", "get_browser_state" -> Icons.Default.Language
+        "enter_text", "scroll_page", "navigate_back", "navigate_forward", "get_browser_state", "extract_links" -> Icons.Default.Language
         else -> if (toolName.contains("email")) Icons.Default.Email else Icons.Default.AutoAwesome
     }
 }

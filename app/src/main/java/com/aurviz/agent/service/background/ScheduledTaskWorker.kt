@@ -51,7 +51,7 @@ class ScheduledTaskWorker(
         try {
             val emailContext = EmailTaskContextFactory.create(
                 promptAction = promptAction,
-                gmailConnected = app.backendAuthManager.isConnected(),
+                gmailConnected = app.mailService.isConnected(),
                 accountEmail = ""
             )
             val outcome = when {

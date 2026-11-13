@@ -3,6 +3,10 @@ package com.aurviz.agent.core.security
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.aurviz.agent.BuildConfig
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Manages encrypted key-value storage using Android Keystore and EncryptedSharedPreferences.
@@ -26,13 +30,16 @@ class SecurePreferences(context: Context) {
 
     val isSecureStorageAvailable: Boolean get() = securePreferences != null
 
-    fun getGeminiApiKey(): String {
-        val storedKey = securePreferences?.getString(KEY_GEMINI_API_KEY, null)
-        if (!storedKey.isNullOrBlank()) {
-            return storedKey
-        }
-        return ""
-    }
+    /** Key the user typed in Settings; empty when none was saved. */
+    fun getUserGeminiApiKey(): String =
+        securePreferences?.getString(KEY_GEMINI_API_KEY, null)?.takeIf { it.isNotBlank() }.orEmpty()
+
+    /** True when this build ships a fallback key (set via local.properties at build time). */
+    val hasBuiltInGeminiKey: Boolean get() = BuildConfig.GEMINI_API_KEY_DEFAULT.isNotBlank()
+
+    /** Key actually used for requests: the user's own key, else the build-time fallback. */
+    fun getGeminiApiKey(): String =
+        getUserGeminiApiKey().ifBlank { BuildConfig.GEMINI_API_KEY_DEFAULT }
 
     fun saveGeminiApiKey(apiKey: String) {
         checkNotNull(securePreferences) { "Encrypted storage is unavailable. The API key was not saved." }
@@ -81,7 +88,36 @@ class SecurePreferences(context: Context) {
             .apply()
     }
 
+    private val _themeMode = MutableStateFlow(preferences.getString(KEY_THEME_MODE, "SYSTEM") ?: "SYSTEM")
+    /** One of SYSTEM, LIGHT, DARK. */
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    fun setThemeMode(mode: String) {
+        preferences.edit().putString(KEY_THEME_MODE, mode).apply()
+        _themeMode.value = mode
+    }
+
+    private val _demoMode = MutableStateFlow(preferences.getBoolean(KEY_DEMO_MODE, false))
+    /** When true the Gmail tools use the built-in sample mailbox instead of a real account. */
+    val demoMode: StateFlow<Boolean> = _demoMode.asStateFlow()
+
+    fun isDemoMode(): Boolean = _demoMode.value
+
+    fun setDemoMode(enabled: Boolean) {
+        preferences.edit().putBoolean(KEY_DEMO_MODE, enabled).apply()
+        _demoMode.value = enabled
+    }
+
+    fun isOnboardingDone(): Boolean = preferences.getBoolean(KEY_ONBOARDING_DONE, false)
+
+    fun setOnboardingDone() {
+        preferences.edit().putBoolean(KEY_ONBOARDING_DONE, true).apply()
+    }
+
     companion object {
+        private const val KEY_THEME_MODE = "theme_mode"
+        private const val KEY_DEMO_MODE = "demo_mode"
+        private const val KEY_ONBOARDING_DONE = "onboarding_done"
         private const val PREFS_FILENAME = "secure_agent_prefs"
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"

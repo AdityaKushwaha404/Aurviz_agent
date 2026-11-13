@@ -1,6 +1,6 @@
 package com.aurviz.agent.data.tools
 
-import com.aurviz.agent.data.remote.BackendAuthManager
+import com.aurviz.agent.domain.mail.MailService
 import com.aurviz.agent.domain.model.SensitiveAction
 import com.aurviz.agent.domain.model.ToolExecutionResponse
 import com.aurviz.agent.domain.tool.AgentTool
@@ -9,7 +9,7 @@ import java.util.UUID
 
 /** Sends mail through the Aurviz backend only after the agent confirmation flow approves it. */
 class EmailTool(
-    private val backendAuthManager: BackendAuthManager,
+    private val mail: MailService,
     private val getDefaultEmail: () -> String
 ) : AgentTool {
     override val name: String = "send_email"
@@ -23,8 +23,8 @@ class EmailTool(
         val body = arguments["body"] as? String ?: ""
         val validationError = validate(recipient, subject, body)
         if (validationError != null) return failure(validationError)
-        if (!backendAuthManager.isConnected()) {
-            return failure("Connect Gmail in Settings before preparing email delivery.")
+        if (!mail.isConnected()) {
+            return failure("Connect Gmail in Settings (or turn on the demo mailbox) before preparing email delivery.")
         }
         return ToolExecutionResponse(
             toolName = name,
@@ -47,18 +47,22 @@ class EmailTool(
         val subject = payload["subject"] as? String ?: ""
         val body = payload["body"] as? String ?: ""
         validate(recipient, subject, body)?.let { return failure(it) }
-        if (!backendAuthManager.isConnected()) {
-            return failure("Connect Gmail in Settings before confirming email delivery.")
+        if (!mail.isConnected()) {
+            return failure("Connect Gmail in Settings (or turn on the demo mailbox) before confirming email delivery.")
         }
 
         return try {
             val requestKey = actionId.takeIf { it.matches(Regex("^[A-Za-z0-9._:-]{8,120}$")) }
                 ?: UUID.randomUUID().toString()
-            val result = backendAuthManager.sendEmail(recipient, subject, body, requestKey)
+            val result = mail.send(recipient, subject, body, requestKey)
             ToolExecutionResponse(
                 toolName = name,
                 isSuccess = true,
-                output = "Email queued for sending. Gmail confirms delivery shortly after."
+                output = if (result.optBoolean("demo")) {
+                    "Demo mode: the email was recorded in the demo outbox. Nothing was sent to a real address."
+                } else {
+                    "Email queued for sending. Gmail confirms delivery shortly after."
+                }
             )
         } catch (error: Exception) {
             val message = when (error) {

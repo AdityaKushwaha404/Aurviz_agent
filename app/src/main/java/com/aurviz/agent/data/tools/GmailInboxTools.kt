@@ -1,7 +1,7 @@
 package com.aurviz.agent.data.tools
 
 import com.aurviz.agent.data.remote.BackendApiException
-import com.aurviz.agent.data.remote.BackendAuthManager
+import com.aurviz.agent.domain.mail.MailService
 import com.aurviz.agent.domain.model.ToolExecutionResponse
 import com.aurviz.agent.domain.tool.AgentTool
 import kotlinx.coroutines.CancellationException
@@ -34,18 +34,18 @@ internal object GmailToolErrors {
     }
 }
 
-class GmailSearchTool(private val auth: BackendAuthManager) : AgentTool {
+class GmailSearchTool(private val mail: MailService) : AgentTool {
     override val name = "search_emails"
     override val description =
         "Search the connected Gmail inbox using Gmail query syntax (e.g. 'is:important newer_than:1d', " +
             "'subject:interview'). Returns sender, subject, date, snippet and message id."
 
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
-        if (!auth.isConnected()) return notConnected(name)
+        if (!mail.isConnected()) return notConnected(name)
         val query = (arguments["query"] as? String)?.trim().orEmpty().ifBlank { "in:inbox newer_than:1d" }
         val max = (arguments["maxResults"] as? Number)?.toInt() ?: 10
         return try {
-            val result = auth.searchEmails(query, max)
+            val result = mail.search(query, max)
             ToolExecutionResponse(name, isSuccess = true, output = formatSearch(result))
         } catch (error: Exception) {
             GmailToolErrors.failure(name, error)
@@ -75,18 +75,18 @@ class GmailSearchTool(private val auth: BackendAuthManager) : AgentTool {
     }
 }
 
-class GmailReadTool(private val auth: BackendAuthManager) : AgentTool {
+class GmailReadTool(private val mail: MailService) : AgentTool {
     override val name = "read_email"
     override val description = "Read the full text of one Gmail message by the id returned from search_emails."
 
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
-        if (!auth.isConnected()) return notConnected(name)
+        if (!mail.isConnected()) return notConnected(name)
         val id = (arguments["messageId"] as? String)?.trim().orEmpty()
         if (!id.matches(Regex("^[A-Za-z0-9_-]{6,64}$"))) {
             return ToolExecutionResponse(name, false, "A valid messageId from search_emails is required.")
         }
         return try {
-            val m = auth.readEmail(id)
+            val m = mail.read(id)
             ToolExecutionResponse(
                 name,
                 isSuccess = true,
@@ -100,7 +100,7 @@ class GmailReadTool(private val auth: BackendAuthManager) : AgentTool {
 }
 
 class GmailDraftTool(
-    private val auth: BackendAuthManager,
+    private val mail: MailService,
     private val getDefaultEmail: () -> String
 ) : AgentTool {
     override val name = "create_email_draft"
@@ -109,7 +109,7 @@ class GmailDraftTool(
             "or write an email but not send it."
 
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
-        if (!auth.isConnected()) return notConnected(name)
+        if (!mail.isConnected()) return notConnected(name)
         val recipient = (arguments["recipient"] as? String ?: getDefaultEmail()).trim()
         val subject = (arguments["subject"] as? String).orEmpty().trim()
         val body = arguments["body"] as? String ?: ""
@@ -122,11 +122,12 @@ class GmailDraftTool(
         }
         if (error != null) return ToolExecutionResponse(name, false, error)
         return try {
-            auth.createDraft(recipient, subject, body)
+            mail.createDraft(recipient, subject, body)
             ToolExecutionResponse(
                 name,
                 isSuccess = true,
-                output = "Draft saved in Gmail Drafts (not sent). To: $recipient, Subject: $subject"
+                output = (if (mail.isDemo) "Draft saved in the demo mailbox Drafts (not sent). "
+                else "Draft saved in Gmail Drafts (not sent). ") + "To: $recipient, Subject: $subject"
             )
         } catch (e: Exception) {
             GmailToolErrors.failure(name, e)
@@ -137,5 +138,5 @@ class GmailDraftTool(
 private fun notConnected(tool: String) = ToolExecutionResponse(
     tool,
     isSuccess = false,
-    output = "Gmail is not connected. Ask the user to connect Gmail in Settings."
+    output = "Gmail is not connected. Ask the user to connect Gmail in Settings, or turn on the demo mailbox there."
 )

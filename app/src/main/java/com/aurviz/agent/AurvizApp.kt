@@ -13,6 +13,10 @@ import com.aurviz.agent.data.remote.BackendAuthManager
 import com.aurviz.agent.data.repository.MemoryRepositoryImpl
 import com.aurviz.agent.data.repository.TaskSchedulerRepositoryImpl
 import com.aurviz.agent.data.tools.EmailTool
+import com.aurviz.agent.data.mail.BackendMailService
+import com.aurviz.agent.data.mail.DemoMailService
+import com.aurviz.agent.domain.mail.MailGateway
+import com.aurviz.agent.domain.mail.MailService
 import com.aurviz.agent.data.tools.GmailDraftTool
 import com.aurviz.agent.data.tools.GmailReadTool
 import com.aurviz.agent.data.tools.GmailSearchTool
@@ -25,14 +29,17 @@ import com.aurviz.agent.domain.orchestrator.AgentOrchestrator
 import com.aurviz.agent.domain.repository.MemoryRepository
 import com.aurviz.agent.domain.repository.TaskSchedulerRepository
 import com.aurviz.agent.domain.tool.ToolRegistry
+import kotlinx.coroutines.launch
 import com.aurviz.agent.service.voice.VoiceManager
 import com.aurviz.agent.service.web.ControlledWebScraper
 import com.aurviz.agent.service.web.BrowserAgentController
+import com.aurviz.agent.service.web.BrowserStore
 
 class AurvizApp : Application() {
 
     lateinit var securePreferences: SecurePreferences private set
     lateinit var backendAuthManager: BackendAuthManager private set
+    lateinit var mailService: MailService private set
     lateinit var database: AppDatabase private set
     lateinit var memoryRepository: MemoryRepository private set
     lateinit var taskSchedulerRepository: TaskSchedulerRepository private set
@@ -40,16 +47,17 @@ class AurvizApp : Application() {
     lateinit var voiceManager: VoiceManager private set
     lateinit var browserAgentController: BrowserAgentController private set
     lateinit var performanceRecorder: RoomPerformanceRecorder private set
+    lateinit var browserStore: BrowserStore private set
 
     override fun onCreate() {
         super.onCreate()
 
         // 1. Initialize security, Gmail authorization, and database
         securePreferences = SecurePreferences(this)
-        backendAuthManager = BackendAuthManager(
-            BackendApiClient(BuildConfig.API_BASE_URL),
-            securePreferences
-        )
+        val backendApi = BackendApiClient(BuildConfig.API_BASE_URL)
+        backendAuthManager = BackendAuthManager(backendApi, securePreferences)
+        // Wake the hosted backend early so the first Gmail action is not slow.
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) { backendApi.warmUp() }
         database = AppDatabase.getInstance(this)
         memoryRepository = MemoryRepositoryImpl(database.memoryDao())
         taskSchedulerRepository = TaskSchedulerRepositoryImpl(
@@ -62,13 +70,19 @@ class AurvizApp : Application() {
         // 2. Initialize browser automation sessions
         val webScraper = ControlledWebScraper()
         browserAgentController = BrowserAgentController()
+        browserStore = BrowserStore(this)
 
         // 3. Register Agent Tools
-        val emailTool = EmailTool(backendAuthManager) { securePreferences.getDefaultEmail() }
+        mailService = MailGateway(
+            real = BackendMailService(backendAuthManager),
+            demo = DemoMailService(),
+            demoEnabled = securePreferences::isDemoMode
+        )
+        val emailTool = EmailTool(mailService) { securePreferences.getDefaultEmail() }
         val gmailTools = listOf(
-            GmailSearchTool(backendAuthManager),
-            GmailReadTool(backendAuthManager),
-            GmailDraftTool(backendAuthManager) { securePreferences.getDefaultEmail() }
+            GmailSearchTool(mailService),
+            GmailReadTool(mailService),
+            GmailDraftTool(mailService) { securePreferences.getDefaultEmail() }
         )
         val webTool = WebAutomationTool(webScraper)
         val browserTools = listOf(
@@ -80,6 +94,7 @@ class AurvizApp : Application() {
             BrowserAgentTool(browserAgentController, "scroll_page", "Scroll the current page up or down."),
             BrowserAgentTool(browserAgentController, "navigate_back", "Navigate to the previous page in browser history."),
             BrowserAgentTool(browserAgentController, "navigate_forward", "Navigate to the next page in browser history."),
+            BrowserAgentTool(browserAgentController, "extract_links", "List the links (text and URL) on the current page so you can choose where to go next."),
             BrowserAgentTool(browserAgentController, "get_browser_state", "Return the current page title, URL, loading state, and a short text preview.")
         )
         val schedulerTool = SchedulerTool(taskSchedulerRepository)

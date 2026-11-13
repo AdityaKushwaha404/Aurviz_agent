@@ -96,7 +96,7 @@ class BrowserAgentTool(
                     if (selector != null) put("selector", selector)
                 }
             }
-            "read_page", "navigate_back", "navigate_forward", "get_browser_state" -> emptyMap()
+            "read_page", "navigate_back", "navigate_forward", "get_browser_state", "extract_links" -> emptyMap()
             "scroll_page" -> {
                 val direction = (arguments["direction"] as? String)?.lowercase()
                     ?.takeIf { it == "up" || it == "down" }

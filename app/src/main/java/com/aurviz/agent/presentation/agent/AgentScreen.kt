@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import android.widget.Toast
 import com.aurviz.agent.core.util.TimeUtils
+import com.aurviz.agent.presentation.components.AurvizLogo
 import com.aurviz.agent.presentation.components.MarkdownText
 
 private data class StarterPrompt(
@@ -97,6 +98,7 @@ fun AgentScreen(
     val recognizedText by viewModel.recognizedText.collectAsState()
     val rmsLevel by viewModel.rmsLevel.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
+    val demoMode by viewModel.demoMode.collectAsState()
 
     var textInput by rememberSaveable { mutableStateOf("") }
     var showClearChatConfirmation by remember { mutableStateOf(false) }
@@ -128,18 +130,7 @@ fun AgentScreen(
                         .fillMaxWidth()
                         .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)
                 ) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_launcher_foreground),
-                            contentDescription = null,
-                            tint = Color.Unspecified,
-                            modifier = Modifier.padding(5.dp)
-                        )
-                    }
+                    AurvizLogo(size = 40.dp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -159,6 +150,17 @@ fun AgentScreen(
                                 activity ?: "Ready",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (demoMode) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Text(
+                                "DEMO",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
                     }

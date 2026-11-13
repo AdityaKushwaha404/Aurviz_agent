@@ -16,11 +16,19 @@ class BackendApiException(val statusCode: Int, message: String) : IOException(me
 class BackendApiClient(
     private val baseUrl: String,
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .callTimeout(30, TimeUnit.SECONDS)
+        // A free-tier host can take 30-50 s to wake from sleep, so allow for a cold start.
+        .connectTimeout(45, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .callTimeout(90, TimeUnit.SECONDS)
         .build()
 ) {
+    /** Fire-and-forget request that wakes a sleeping backend before the user needs it. */
+    suspend fun warmUp() = withContext(Dispatchers.IO) {
+        runCatching {
+            client.newCall(Request.Builder().url("$baseUrl/health").get().build()).execute().close()
+        }
+    }
+
     suspend fun exchangeAuthorizationCode(code: String): BackendSession = withContext(Dispatchers.IO) {
         val payload = JSONObject().put("code", code).toString()
         val response = execute(

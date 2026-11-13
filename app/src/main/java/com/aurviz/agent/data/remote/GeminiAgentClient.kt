@@ -276,7 +276,7 @@ open class GeminiAgentClient(
             put("tools", JSONArray().put(JSONObject().put("functionDeclarations", functionDeclarations())))
             put("generationConfig", JSONObject().apply {
                 put("temperature", 0.3)
-                put("maxOutputTokens", 1024)
+                put("maxOutputTokens", 2048)
             })
         }
     }
@@ -403,6 +403,7 @@ open class GeminiAgentClient(
             .put(declaration("search_webpage", "Search the current page using its search input, or search the web if no page is open.", JSONObject()
                 .put("query", property("STRING", "Search terms"))
                 .put("selector", property("STRING", "Optional CSS selector for the page search field")), listOf("query")))
+            .put(declaration("extract_links", "List the links (text and URL) on the active browser page.", JSONObject(), emptyList()))
             .put(declaration("read_page", "Read visible text from the active browser page.", JSONObject(), emptyList()))
             .put(declaration("click_element", "Click a page element. Requires user approval before the click.", JSONObject()
                 .put("selector", property("STRING", "CSS selector for the element")), listOf("selector")))
