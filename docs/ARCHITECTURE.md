@@ -104,6 +104,56 @@ Behaviours worth knowing:
 - **Empty answers:** if the model returns no real text (for example a lone dash) the orchestrator asks once more, then falls back to a retryable error.
 - **Attachments:** the browser and share-intent can pass page or text content to the model. It is sent only for the action the user triggered and is marked as untrusted data, which reduces prompt-injection risk.
 
+### 4.1 Voice-to-action pipeline
+
+Voice and text share one path. Speech is converted to text on the device, then the same agent loop runs.
+
+```mermaid
+flowchart LR
+    M([Microphone tap]) --> SR[Android SpeechRecognizer<br/>free-form, partial results]
+    SR -- partial text --> UI[Live transcript overlay]
+    SR -- final text --> VM[AgentViewModel.sendPrompt<br/>isVoice = true]
+    T([Typed text]) --> VM
+    VM --> O[AgentOrchestrator]
+    O --> G[Gemini plans, calls tools]
+    G --> X[Tools execute]
+    X --> R[Reply + tool cards]
+    R --> TTS[TextToSpeech<br/>if Spoken replies is on]
+```
+
+1. **Capture:** `VoiceManager` starts `SpeechRecognizer` with `LANGUAGE_MODEL_FREE_FORM` and partial results. The microphone permission is requested at launch, and a missing recognizer is handled without crashing.
+2. **Feedback:** partial results and the audio level drive an animated overlay, so the user sees what was heard.
+3. **Hand-off:** the final transcript is sent with `isVoiceInput = true`, so the chat labels the message "Voice". From here voice and typing are identical.
+4. **Plan and act:** the orchestrator runs the reason, act, observe loop (section 4) and shows each tool as a card.
+5. **Report:** the answer is rendered, and spoken aloud through `TextToSpeech` when "Spoken replies" is enabled. A stop button interrupts speech.
+
+Speech recognition is on-device or platform-provided; only the resulting text goes to Gemini, never audio.
+
+### 4.2 Memory storage and retrieval
+
+| Aspect | Design |
+|---|---|
+| Storage | Room table `memories` (key, content, category, importance, createdAt). Survives restarts and app updates through an explicit migration |
+| Writing | The agent's `manage_memory` tool (save, update, delete) or the Memory screen (add, edit, delete with confirmation). Saving an existing key updates it instead of duplicating |
+| Retrieval | `AgentOrchestrator.memoryContextFor(prompt)`: tokenize the prompt, drop stop-words, run a SQL `LIKE` search per term across key, content and category (ordered by importance, then recency), then add the 4 most recent memories so general preferences always apply |
+| Injection | The top results (at most 8) go into the system instruction as "Known user context and saved preferences (apply them)" on **every** turn, including background runs |
+| Safety | Update and delete act only on one unambiguous match; otherwise the agent receives the candidates and must ask the user |
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant O as Orchestrator
+    participant D as Room memories
+    participant G as Gemini
+    U->>O: "Draft an email to my professor"
+    O->>D: search terms (draft, email, professor) + recent 4
+    D-->>O: "email_tone: I prefer formal emails" ...
+    O->>G: system instruction includes the memories
+    G-->>O: formal draft (preference applied without being asked)
+```
+
+Why lexical search: it is fast (about 54 ms median measured), private (nothing leaves the phone for retrieval) and needs no model download. Its limit is that it matches words, not meaning, so a vector index is the natural upgrade.
+
 ## 5. Tools and the approval gate
 
 | Tool | Side effect | Needs approval |
@@ -142,6 +192,7 @@ sequenceDiagram
 
 Reliability rules:
 
+- Recurrence is expressed in natural language ("every morning at 9", "at 6 PM") and converted by the model into a time and a daily or one-time flag; cron syntax itself is not parsed. Weekday-specific rules (for example "every Monday") are not supported.
 - Unique work names (`task_<id>`, `task_<id>_manual`) stop duplicate enqueues; an in-process guard drops a concurrent second run.
 - A run is **never reported as success** if a required tool failed. Transient failures (offline, rate limit, tool outage) are retried with exponential backoff up to 3 attempts and shown as "Retrying".
 - Pause cancels the WorkManager job but keeps the task; resume re-registers it. A run that was already in flight never silently resumes a paused task.

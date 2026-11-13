@@ -36,6 +36,46 @@ Other single observations: `search_emails` about 0.9 s for one call, `manage_mem
 ### Limitations of this study
 One device, one network, one time of day, simple prompts. Multi-step email workflows take proportionally longer. No battery or long-run memory study was performed. WorkManager timing is not exact, so scheduled-run delay was not benchmarked.
 
+## Task execution latency (scheduled runs)
+
+Measured by the app's recorder on the same device. A scheduled run is a full background agent run: several model calls and tool calls through WorkManager.
+
+| Run | Duration | Notes |
+|---|---:|---|
+| Email summary, real Gmail via the backend (run 1) | 9.9 s | Search, read, summarize |
+| Email summary, real Gmail via the backend (run 2) | 21.3 s | More messages read, more model steps |
+| Email summary, demo mailbox | 6.9 s | Local mail tools, no network hop to Gmail |
+
+Task latency is dominated by the number of model round trips (about 1.5 s each) plus Gmail calls; it is a background job, so the user never waits on it. WorkManager's scheduling delay (how late Android starts a run) depends on battery state and was not benchmarked.
+
+## Memory usage
+
+`dumpsys meminfo` on the physical device, debug build, after a session that included chat, the mailbox viewer and the browser:
+
+| Measure | Value |
+|---|---:|
+| Total PSS | 165 MB |
+| Java heap | 18 MB |
+| Native heap | 16 MB |
+| Graphics | 39 MB |
+| Resident set (RSS) | 289 MB |
+| Swap PSS | 0.1 MB |
+
+Most of the footprint is graphics and the WebView that backs the browser (created only while the browser screen is open and destroyed afterwards). The Kotlin heap is small because chat history is capped at 100 messages and results are bounded. This is a single point-in-time measurement on a debug build, not a peak or a leak test.
+
+## Optimization implemented
+
+**Bounded model context.** Each turn sends at most 12 prior messages, 8 memories, email bodies capped at 6,000 characters and 15 search results. This keeps requests small, which lowers latency and token cost, and it keeps the app's memory flat over long sessions. It is a design choice; its effect on latency was not isolated in an A/B measurement.
+
+**Backend warm-up.** The free-tier server sleeps when idle and needs about 30 to 50 seconds to wake. The app sends a health request at launch and allows a 45-second first request, so the first Gmail action no longer fails with "could not reach".
+
+## Optimization opportunities (not yet done)
+
+1. **Stream the model response.** Gemini supports streaming. Showing text as it arrives would make the 1.5 s median feel instant, and it would cut perceived latency for long summaries where the 95th percentile reaches 6.6 s.
+2. **Cache and parallelize Gmail reads.** `search_emails` already fetches message metadata in parallel on the server. `read_email` calls are sequential through the agent loop; letting the model request several reads at once (parallel function calls) would cut a multi-email summary from about N model round trips to about two.
+3. **Memory retrieval index.** Replace the per-term `LIKE` queries with an FTS4 table (or embeddings) once memories grow into the thousands.
+4. **Shrink the APK and cold start.** Enable R8 minification and a baseline profile for the release build (minification is off in the current debug and release configurations).
+
 ## Reproduce
 Settings, Performance, Reset samples, send at least 30 prompts, read the table.
 
