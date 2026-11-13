@@ -59,6 +59,7 @@ Also covered: task pause/resume, run-now/retry, edit/delete task, result notific
 | FR-05: memory survives force-stop and relaunch | Verified |
 | FR-07: delete by voice command and on-screen delete (with confirmation) | Both verified |
 | FR-10/11/13: "Every morning at 9 AM…" | Daily task created ("Daily at 09:00", next run shown). "Run now" executed through WorkManager: Success row in History with duration and summary, plus a notification |
+| FR-09: "Open news.ycombinator.com and tell me the top 3 stories" | Controlled browser opened the site on its own, the page was read, and the top 3 stories were listed in chat |
 | Performance table | 30 samples recorded on the device (see PERFORMANCE.md) |
 | Light and dark themes | Both checked |
 
@@ -66,7 +67,6 @@ Also covered: task pause/resume, run-now/retry, edit/delete task, result notific
 - FR-01 voice input in this session. Voice-sourced messages exist in the chat history from earlier runs of the app, but speech was not re-tested.
 - Offline behaviour (Retry button and "Retrying" history state) is covered by unit tests only. Toggling Wi-Fi would have dropped the wireless debugging link.
 - A background run with the app fully closed and the device idle for hours (Doze). "Run now" ran the real WorkManager worker, but the scheduled 09:00 trigger has not been observed yet.
-- FR-09 browser automation was not re-run in this session.
 
 ## Manual demo script (device checks)
 
