@@ -396,7 +396,7 @@ fun ScheduledTaskCard(
                 }
             }
 
-            var showDetails by remember(task.id) { mutableStateOf(isFailed) }
+            var showDetails by remember(task.id) { mutableStateOf(false) }
             if (!task.lastExecutionStatus.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(

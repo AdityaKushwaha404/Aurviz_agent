@@ -14,14 +14,27 @@ The app now measures itself. `PerformanceRecorder` writes one Room row per sampl
 
 Percentiles use the nearest-rank method (`MetricMath`, unit-tested). The NFR target is under 3 s for simple commands, excluding external service delays. Compare "Agent turn" against "Gemini call": the difference is on-device overhead (memory retrieval, tool dispatch, persistence, UI).
 
-### How to produce a report
+### Measured results (2026-11-13)
 
-1. Install a debug build on a named device, add the Gemini key, and connect Gmail.
-2. Settings → Performance → Reset.
-3. Run at least 30 simple prompts ("hi", "what do you remember about me?"), 10 email prompts ("summarize my important emails from today") and 2 or more task triggers.
-4. Record device model, Android version, network type, model ID and the table from Settings below.
+Collected by the app itself (Settings → Performance) on a **realme RMX5116, Android 16 (API 36)**, Wi-Fi, debug build, model `gemini-3.5-flash-lite` (the configured primary), after resetting the samples. Workload: **30 simple one-line prompts** that need no tools (arithmetic, trivia, greetings), sent by script through the UI. Nearest-rank percentiles.
 
-No result table is claimed here until that run is done on a device.
+| Metric | n | Median | p95 | Success |
+|---|---:|---:|---:|---:|
+| Agent turn (end-to-end) | 30 | 1.6 s | 6.6 s | 100% |
+| Gemini call | 30 | 1.5 s | 6.4 s | 100% |
+| Memory retrieval (Room) | 30 | 54 ms | 93 ms | 100% |
+
+How to read this against the NFR target ("under 3 s for simple commands, excluding external service delays"):
+
+- **On-device overhead is about 0.1 s at the median** (agent turn minus Gemini call). That covers memory retrieval, prompt assembly, tool dispatch, persistence and UI state, and is far below 3 s.
+- **End-to-end median is 1.6 s**, also under 3 s including the network round trip.
+- **The p95 of 6.6 s is almost entirely Gemini latency** (its own p95 is 6.4 s). The slow tail is external service time; it is not on-device work.
+
+Other single observations from the same session (not a benchmark): `search_emails` took about 0.9 s for one call, `manage_memory` 43 ms, and a manually triggered background run that searched Gmail and summarized took 9.9 s end-to-end (several model and tool steps).
+
+Limitations: one device, one network, one time of day, simple prompts only. Email workflows with several model steps take proportionally longer, since each step adds a Gemini round trip. No battery or long-run memory study was performed.
+
+To reproduce: Settings → Performance → Reset samples, send at least 30 prompts, and read the table.
 
 ## Physical device capture — 2026-11-12
 

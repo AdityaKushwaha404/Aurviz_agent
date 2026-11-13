@@ -37,13 +37,36 @@ Also covered: task pause/resume, run-now/retry, edit/delete task, result notific
 | Resource efficiency | WorkManager only (no persistent services), network constraints, bounded tables and context. |
 | Compatibility | minSdk 26 / targetSdk 34. Runtime mic and notification (API 33+) permissions. WorkManager handles Doze and background limits. |
 
-## Automated verification (this revision)
+## Verification
 
-- `./gradlew app:testDebugUnitTest`: 59 tests pass.
+### Automated
+- `./gradlew app:testDebugUnitTest`: 64 tests pass.
 - `./gradlew app:assembleDebug`: builds.
 - `cd backend && npm test`: 14 tests pass (Node 22).
-- Room migration SQL was compared against Room's generated schema for the new tables and matches exactly.
+- Room migration SQL was compared against Room's generated schema for the new tables and matches.
 - CI (`.github/workflows/build.yml`) runs Android tests + APK build and backend tests + `npm audit`.
+
+### On a physical device (realme RMX5116, Android 16), 2026-11-13, against the deployed backend
+| Check | Result |
+|---|---|
+| Upgrade install over the previous build | Chat history and memories kept (no destructive reset) |
+| Gmail OAuth connect via backend | Connected as the test account |
+| Old session without inbox scope → "check my emails" | Agent showed "reconnect Gmail" message (clear error, no invented data) |
+| FR-04/12: "Check my emails from the last 7 days and summarize them" | `search_emails` ran and returned a summary of the real inbox messages |
+| Accuracy: "Draft an email to my professor… do not send it" | Agent first asked for the missing address; then `create_email_draft` saved a formal draft, **not sent** |
+| FR-08: "Send an email to <test account>…" | Editable approval dialog (To / Subject / Body) shown; after approval the message was queued and a follow-up inbox search found it |
+| FR-06: saved preference "formal emails" | Applied to the next draft |
+| FR-05: memory survives force-stop and relaunch | Verified |
+| FR-07: delete by voice command and on-screen delete (with confirmation) | Both verified |
+| FR-10/11/13: "Every morning at 9 AM…" | Daily task created ("Daily at 09:00", next run shown). "Run now" executed through WorkManager: Success row in History with duration and summary, plus a notification |
+| Performance table | 30 samples recorded on the device (see PERFORMANCE.md) |
+| Light and dark themes | Both checked |
+
+### Not verified on the device
+- FR-01 voice input in this session. Voice-sourced messages exist in the chat history from earlier runs of the app, but speech was not re-tested.
+- Offline behaviour (Retry button and "Retrying" history state) is covered by unit tests only. Toggling Wi-Fi would have dropped the wireless debugging link.
+- A background run with the app fully closed and the device idle for hours (Doze). "Run now" ran the real WorkManager worker, but the scheduled 09:00 trigger has not been observed yet.
+- FR-09 browser automation was not re-run in this session.
 
 ## Manual demo script (device checks)
 

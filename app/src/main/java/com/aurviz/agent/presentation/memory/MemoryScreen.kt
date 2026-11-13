@@ -49,8 +49,8 @@ fun MemoryScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Personal Memory Layer", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                        Text("Persistent knowledge base across restarts", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                        Text("Memory", fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                        Text("What Aurviz remembers about you", style = MaterialTheme.typography.labelMedium, color = TextSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -84,7 +84,7 @@ fun MemoryScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { viewModel.updateSearchQuery(it) },
-                placeholder = { Text("Search memories, facts, or preferences...") },
+                placeholder = { Text("Search memories") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = PrimaryBlue) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -138,7 +138,7 @@ fun MemoryScreen(
                 ) {}
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    "${filteredMemories.size} Memories Persisted",
+                    "${filteredMemories.size} ${if (filteredMemories.size == 1) "memory" else "memories"}",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = TextSecondary
