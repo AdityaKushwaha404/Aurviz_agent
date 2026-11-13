@@ -15,7 +15,7 @@ Create `local.properties` (it is git-ignored) and add:
 sdk.dir=/path/to/Android/sdk
 gemini.api.key=YOUR_GEMINI_KEY
 ```
-Build again. The APK then works with no setup. A user's own key entered in Settings always takes priority. **Never commit `local.properties`.** A key inside an APK can be extracted, so use a free-tier key you can rotate, and restrict it in Google AI Studio.
+Build again with `./gradlew clean app:assembleDebug` (use `clean` after changing `local.properties`: Kotlin inlines build-time constants, so an incremental build can keep the old value). The APK then works with no setup. A user's own key entered in Settings always takes priority. **Never commit `local.properties`.** A key inside an APK can be extracted, so use a free-tier key you can rotate, and restrict it in Google AI Studio.
 
 The API base URL is `API_BASE_URL` in `app/build.gradle.kts`.
 

@@ -67,7 +67,7 @@ Three concerns, kept separate: **Gemini reasons**, **Kotlin tools execute**, **W
 git clone https://github.com/AdityaKushwaha404/Aurviz_agent.git
 cd Aurviz_agent
 echo "gemini.api.key=YOUR_GEMINI_KEY" >> local.properties   # optional, bundles a key into the APK
-./gradlew app:assembleDebug
+./gradlew clean app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
