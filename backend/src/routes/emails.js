@@ -7,6 +7,7 @@ import {
   scheduleEmail,
   updateEmail
 } from "../services/email-service.js";
+import { assertRecipientAllowed } from "../services/shared-account.js";
 import { scheduleEmailSchema, sendEmailSchema, updateEmailSchema } from "../utils/validation.js";
 
 const router = Router();
@@ -26,6 +27,7 @@ router.post("/scheduled", async (req, res, next) => {
     const idempotencyKey = parseIdempotencyKey(req, res);
     if (!idempotencyKey) return;
     const input = scheduleEmailSchema.parse(req.body);
+    assertRecipientAllowed(req.accountEmail, input.recipient);
     if (input.scheduledAt.getTime() < Date.now() + 30_000) {
       return res.status(400).json({ error: "Scheduled send time must be at least 30 seconds in the future." });
     }
@@ -41,6 +43,7 @@ router.post("/send", async (req, res, next) => {
     const idempotencyKey = parseIdempotencyKey(req, res);
     if (!idempotencyKey) return;
     const input = sendEmailSchema.parse(req.body);
+    assertRecipientAllowed(req.accountEmail, input.recipient);
     const email = await scheduleEmail(
       req.app.locals.boss,
       req.accountId,

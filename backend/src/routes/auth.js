@@ -1,10 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { Router } from "express";
+import { rateLimit } from "express-rate-limit";
 import { env } from "../config/env.js";
 import { prisma } from "../database/prisma.js";
 import { requireDeviceSession } from "../middleware/device-auth.js";
 import { authorizationUrl, createOAuthClient, exchangeAuthorizationCode } from "../services/google.js";
 import { decryptRefreshToken } from "../services/token-vault.js";
+import { assertCanDisconnect, isSharedAccount, sharedTestEmail } from "../services/shared-account.js";
 import { createOpaqueToken, encryptRefreshToken, hashOpaqueToken, safeEquals } from "../services/token-vault.js";
 
 const router = Router();
@@ -99,9 +101,42 @@ router.post("/exchange", async (req, res, next) => {
   }
 });
 
+const sharedSessionLimiter = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 40,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Too many requests. Try again later." }
+});
+
+/**
+ * Starts a session on the shared test inbox without any credentials, so a reviewer can try real
+ * Gmail with one tap. The account is restricted (see services/shared-account.js).
+ */
+router.post("/shared-test", sharedSessionLimiter, async (_req, res, next) => {
+  try {
+    const email = sharedTestEmail();
+    const account = await prisma.googleAccount.findUnique({ where: { email } });
+    if (!account || account.disconnectedAt || !account.encryptedRefreshToken) {
+      return res.status(503).json({
+        error: "The shared test inbox is not available right now. Use the demo mailbox instead."
+      });
+    }
+    const accessToken = createOpaqueToken();
+    const expiresAt = new Date(Date.now() + env.sharedSessionTtlHours * 3_600_000);
+    await prisma.deviceSession.create({
+      data: { accountId: account.id, tokenHash: hashOpaqueToken(accessToken), expiresAt }
+    });
+    res.set("Cache-Control", "no-store").json({ accessToken, expiresAt, email, shared: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get("/me", requireDeviceSession, async (req, res) => {
   res.set("Cache-Control", "no-store").json({
     connected: true,
+    shared: isSharedAccount(req.accountEmail),
     email: req.accountEmail,
     expiresAt: req.deviceSession.expiresAt
   });
@@ -137,6 +172,7 @@ router.delete("/session", requireDeviceSession, async (req, res, next) => {
 
 router.delete("/google", requireDeviceSession, async (req, res, next) => {
   try {
+    assertCanDisconnect(req.accountEmail);
     const account = await prisma.googleAccount.findUnique({ where: { id: req.accountId } });
     const pending = await prisma.scheduledEmail.findMany({
       where: { accountId: req.accountId, status: "SCHEDULED" },
