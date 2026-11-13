@@ -35,6 +35,10 @@ class SettingsViewModel(
         viewModelScope.launch { backendAuthManager.refreshConnectionState() }
     }
 
+    fun refreshGmailStatus() {
+        viewModelScope.launch { backendAuthManager.refreshConnectionState() }
+    }
+
     fun disconnectGmail() {
         viewModelScope.launch { backendAuthManager.disconnect() }
     }

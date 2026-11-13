@@ -46,6 +46,9 @@ fun SettingsScreen(
 
     val scrollState = rememberScrollState()
 
+    // Re-check the account each time Settings opens so a one-off network error does not stick.
+    LaunchedEffect(Unit) { viewModel.refreshGmailStatus() }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -138,6 +141,9 @@ fun SettingsScreen(
                         fontSize = 13.sp,
                         color = TextSecondary
                     )
+                    if (gmailConnectionState.startsWith("Could not reach")) {
+                        OutlinedButton(onClick = viewModel::refreshGmailStatus) { Text("Retry") }
+                    }
                     if (gmailConnectionState.startsWith("Connected as ")) {
                         OutlinedButton(onClick = onDisconnectGmail) {
                             Text("Disconnect Gmail")
