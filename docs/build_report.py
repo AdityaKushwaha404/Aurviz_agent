@@ -28,6 +28,8 @@ DOCUMENTS = [
     ("TEST_REPORT.md", "Test Report"),
     ("PERFORMANCE.md", "Performance"),
     ("EVALUATOR_GUIDE.md", "Evaluator Guide"),
+    ("EMAIL_FLOW.md", "Email Flow with the Test Account"),
+    ("BROWSER.md", "The Aurviz Browser"),
     ("USER_GUIDE.md", "User Guide"),
     ("API.md", "Backend API"),
     ("DEPLOYMENT.md", "Build and Deployment"),

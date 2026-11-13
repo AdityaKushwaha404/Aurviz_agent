@@ -12,22 +12,6 @@ sealed class SensitiveAction {
         val body: String
     ) : SensitiveAction()
 
-    data class ScheduleEmail(
-        override val actionId: String = java.util.UUID.randomUUID().toString(),
-        override val description: String,
-        val recipient: String,
-        val subject: String,
-        val body: String,
-        val scheduledAt: String,
-        val timeZone: String
-    ) : SensitiveAction()
-
-    data class DeleteData(
-        override val actionId: String = java.util.UUID.randomUUID().toString(),
-        override val description: String,
-        val target: String
-    ) : SensitiveAction()
-
     data class BrowserInteraction(
         override val actionId: String = java.util.UUID.randomUUID().toString(),
         override val description: String,

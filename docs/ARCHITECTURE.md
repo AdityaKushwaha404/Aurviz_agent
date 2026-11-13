@@ -68,6 +68,7 @@ flowchart TB
 ```
 
 Rules that keep it maintainable:
+
 - `domain` never imports Android UI classes, so the orchestrator is covered by plain JVM tests with fake clients.
 - Tools depend on interfaces (`MailService`, repositories), not on concrete networking classes.
 - The UI observes `StateFlow`s and holds no business logic.
@@ -96,6 +97,7 @@ sequenceDiagram
 ```
 
 Behaviours worth knowing:
+
 - **Planning rules** are in the system instruction: one tool at a time, search then read then summarize, draft versus send, ask when the recipient is ambiguous, never invent mail content.
 - **Memory** (lexical match plus the most recent entries) is injected on every turn, so a saved preference like "formal emails" affects later drafts.
 - **Step limit:** a request cannot loop forever. Reaching the limit shows an explicit message with a retry action.
@@ -139,6 +141,7 @@ sequenceDiagram
 ```
 
 Reliability rules:
+
 - Unique work names (`task_<id>`, `task_<id>_manual`) stop duplicate enqueues; an in-process guard drops a concurrent second run.
 - A run is **never reported as success** if a required tool failed. Transient failures (offline, rate limit, tool outage) are retried with exponential backoff up to 3 attempts and shown as "Retrying".
 - Pause cancels the WorkManager job but keeps the task; resume re-registers it. A run that was already in flight never silently resumes a paused task.
@@ -253,6 +256,7 @@ Known limit: a Gemini key bundled into an APK can be extracted from the file. Fo
 ## 11. Extending Aurviz
 
 Adding a capability, for example Google Calendar, needs **no change to the orchestrator**:
+
 1. Implement `AgentTool` (and a backend route if it needs Google credentials).
 2. Add its function declaration in `GeminiAgentClient`.
 3. Register it in `AurvizApp`.

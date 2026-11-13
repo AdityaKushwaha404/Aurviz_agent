@@ -682,9 +682,9 @@ fun ConfirmationDialog(
     onConfirm: (Map<String, Any?>?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var editableRecipient by remember(action.actionId) { mutableStateOf(when (action) { is SensitiveAction.SendEmail -> action.recipient; is SensitiveAction.ScheduleEmail -> action.recipient; else -> "" }) }
-    var editableSubject by remember(action.actionId) { mutableStateOf(when (action) { is SensitiveAction.SendEmail -> action.subject; is SensitiveAction.ScheduleEmail -> action.subject; else -> "" }) }
-    var editableBody by remember(action.actionId) { mutableStateOf(when (action) { is SensitiveAction.SendEmail -> action.body; is SensitiveAction.ScheduleEmail -> action.body; else -> "" }) }
+    var editableRecipient by remember(action.actionId) { mutableStateOf((action as? SensitiveAction.SendEmail)?.recipient.orEmpty()) }
+    var editableSubject by remember(action.actionId) { mutableStateOf((action as? SensitiveAction.SendEmail)?.subject.orEmpty()) }
+    var editableBody by remember(action.actionId) { mutableStateOf((action as? SensitiveAction.SendEmail)?.body.orEmpty()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -694,9 +694,7 @@ fun ConfirmationDialog(
             Text(
                 when (action) {
                     is SensitiveAction.SendEmail -> "Review email before sending"
-                    is SensitiveAction.ScheduleEmail -> "Review scheduled email"
                     is SensitiveAction.BrowserInteraction -> "Review browser interaction"
-                    is SensitiveAction.DeleteData -> "Sensitive action approval"
                 },
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
@@ -707,18 +705,13 @@ fun ConfirmationDialog(
                 Text(
                     when (action) {
                         is SensitiveAction.SendEmail -> "Approving sends this message from the connected Gmail account. Review every field before continuing."
-                        is SensitiveAction.ScheduleEmail -> "Approving schedules this message through Aurviz. Review the recipient, content, date, time, and timezone."
                         is SensitiveAction.BrowserInteraction -> "The agent will interact with the current website. Review the target and data before continuing."
-                        is SensitiveAction.DeleteData -> "The agent is requesting permission to execute an external action. Review the details below:"
                     },
                     fontSize = 12.sp,
                     color = TextSecondary
                 )
                 when (action) {
-                    is SensitiveAction.SendEmail, is SensitiveAction.ScheduleEmail -> {
-                        if (action is SensitiveAction.ScheduleEmail) {
-                            Text("Scheduled for ${action.scheduledAt} (${action.timeZone})", fontWeight = FontWeight.SemiBold)
-                        }
+                    is SensitiveAction.SendEmail -> {
                         Surface(
                             color = BackgroundLight,
                             shape = RoundedCornerShape(8.dp),
@@ -749,9 +742,6 @@ fun ConfirmationDialog(
                             }
                         }
                     }
-                    is SensitiveAction.DeleteData -> {
-                        Text("Target: ${action.target}", color = ErrorRed, fontWeight = FontWeight.Bold)
-                    }
                     is SensitiveAction.BrowserInteraction -> {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(action.description, fontWeight = FontWeight.SemiBold)
@@ -767,24 +757,16 @@ fun ConfirmationDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val editedArguments: Map<String, Any?>? = when (action) {
+                    val editedArguments: Map<String, Any?> = when (action) {
                         is SensitiveAction.SendEmail -> mapOf(
                             "recipient" to editableRecipient,
                             "subject" to editableSubject,
                             "body" to editableBody
                         )
-                        is SensitiveAction.ScheduleEmail -> mapOf(
-                            "recipient" to editableRecipient,
-                            "subject" to editableSubject,
-                            "body" to editableBody,
-                            "scheduledAt" to action.scheduledAt,
-                            "timeZone" to action.timeZone
-                        )
                         is SensitiveAction.BrowserInteraction -> buildMap {
                             put("selector", action.selector)
                             action.text?.let { put("text", it) }
                         }
-                        is SensitiveAction.DeleteData -> null
                     }
                     onConfirm(editedArguments)
                 },
@@ -793,9 +775,7 @@ fun ConfirmationDialog(
                 Text(
                     when (action) {
                         is SensitiveAction.SendEmail -> "Send email"
-                        is SensitiveAction.ScheduleEmail -> "Schedule email"
                         is SensitiveAction.BrowserInteraction -> "Approve action"
-                        is SensitiveAction.DeleteData -> "Approve & Execute"
                     }
                 )
             }

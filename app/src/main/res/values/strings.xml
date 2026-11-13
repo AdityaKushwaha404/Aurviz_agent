@@ -1,9 +1,5 @@
 <resources>
     <string name="app_name">Aurviz</string>
-    <string name="tab_agent">Agent</string>
-    <string name="tab_memory">Memory</string>
-    <string name="tab_tasks">Scheduled Tasks</string>
-    <string name="tab_settings">Settings</string>
     <string name="shortcut_voice_short">Voice command</string>
     <string name="shortcut_voice_long">Speak a command to Aurviz</string>
     <string name="shortcut_inbox_short">Summarize inbox</string>

@@ -48,6 +48,7 @@ Authorization: Bearer <token>
 
 ## Test account restrictions
 The reviewer test account (`SHARED_TEST_ACCOUNT_EMAIL`) has its credentials shown in the app, so the server enforces:
+
 - `POST /emails/send` and `POST /emails/scheduled` return **403** unless the recipient is the test account itself or an `example.com`, `example.org`, `example.net`, `*.example` or `*.test` address.
 - `DELETE /auth/google` returns **403** (the grant cannot be revoked from the app). `DELETE /auth/session` ends only that device's session.
 

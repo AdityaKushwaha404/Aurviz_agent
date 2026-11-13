@@ -70,29 +70,6 @@ class BackendApiClient(
         execute(request)
     }
 
-    suspend fun scheduleEmail(
-        accessToken: String,
-        recipient: String,
-        subject: String,
-        body: String,
-        scheduledAt: String,
-        timeZone: String,
-        idempotencyKey: String
-    ): JSONObject = withContext(Dispatchers.IO) {
-        val payload = JSONObject()
-            .put("recipient", recipient)
-            .put("subject", subject)
-            .put("body", body)
-            .put("scheduledAt", scheduledAt)
-            .put("timeZone", timeZone)
-            .toString()
-        val request = authenticatedRequest("$baseUrl/api/v1/emails/scheduled", accessToken)
-            .header("Idempotency-Key", idempotencyKey)
-            .post(payload.toRequestBody(JSON))
-            .build()
-        execute(request)
-    }
-
     suspend fun searchEmails(accessToken: String, query: String, maxResults: Int): JSONObject =
         withContext(Dispatchers.IO) {
             val url = "$baseUrl/api/v1/gmail/messages".toHttpUrl().newBuilder()

@@ -114,7 +114,12 @@ Google allows only listed accounts to grant the Gmail read permission while an a
 1. **Add your account as a test user**: Google Cloud Console, APIs and Services, OAuth consent screen, Audience, Test users. Then choose **My own Gmail** in Settings and sign in on Google's own page. You never share a password with Aurviz or anyone.
 2. **Publish the consent screen "In production"** (unverified). Any Google user can then continue through the "Google hasn't verified this app" warning, limited to 100 users until Google verifies the app.
 
-## 7. Mapping to common evaluation criteria
+## 7. Deeper reading
+
+- [Email Flow](EMAIL_FLOW.md): the real-Gmail path step by step, with the Aurviz screens next to the matching Gmail screens as proof.
+- [Browser](BROWSER.md): every browser feature, with screenshots.
+
+## 8. Mapping to common evaluation criteria
 
 | Criterion | Where to look |
 |---|---|

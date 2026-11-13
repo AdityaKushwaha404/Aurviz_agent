@@ -68,13 +68,16 @@ private const val TEXT_SCRIPT = "(document.body ? document.body.innerText : '')"
 
 private const val READER_SCRIPT = """
 (() => {
-  const root = document.querySelector('article') || document.querySelector('main') || document.body;
+  const root = document.querySelector('article') || document.querySelector('main') || document.querySelector('#content') || document.body;
   if (!root) return '';
+  const skip = 'nav, header, footer, aside, form, [role=navigation], .navbox, .infobox, .toc, .mw-editsection, .reference';
   const parts = [];
   root.querySelectorAll('h1,h2,h3,p,li').forEach(e => {
-    const t = (e.innerText || '').trim();
-    if (t.length < 2) return;
-    parts.push((e.tagName[0] === 'H' ? '## ' : e.tagName === 'LI' ? '- ' : '') + t);
+    if (e.closest(skip)) return;
+    const t = (e.innerText || '').trim().replace(/\s+/g, ' ');
+    const isLi = e.tagName === 'LI';
+    if (t.length < (isLi ? 35 : 2)) return; // short list items are almost always menus
+    parts.push((e.tagName[0] === 'H' ? '## ' : isLi ? '- ' : '') + t);
   });
   return parts.join('\n\n');
 })()

@@ -15,7 +15,7 @@
 | Build | `assembleDebug` succeeds; CI runs tests and the build on every push |
 | Dependency audit | `npm audit` reports no known vulnerabilities |
 
-Not verified on the device (stated openly): speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); the real 09:00 trigger firing unattended overnight; and the relaxed recipient rule (example.com addresses) on the deployed server, which needs the latest backend version deployed; its logic is unit-tested.
+Not verified on the device (stated openly): in the browser, the find-in-page match counter, desktop-site toggle, text-size and share actions (the menu entries are shown but typing into the find field could not be driven over adb); speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); the real 09:00 trigger firing unattended overnight; and the relaxed recipient rule (example.com addresses) on the deployed server, which needs the latest backend version deployed; its logic is unit-tested.
 
 ## 2. Automated tests
 
@@ -77,6 +77,10 @@ Tested on the physical device against the deployed backend.
 | D14 | FR-23 | Theme selector System, Light, Dark | Applies immediately | Pass |
 | D15 | FR-24 | First launch | Splash animation then onboarding | Pass |
 | D16 | FR-25 | Change the default recipient email and save | New value shown and kept | Pass |
+| D24 | FR-08 | Test account: "Send an email to the test address…", tap Send email | Approval dialog; card "Email queued"; the message arrives in Gmail | Pass (Gmail screenshots in [Email Flow](EMAIL_FLOW.md)) |
+| D25 | FR-16, FR-06 | Test account: "Draft a formal email to Meera Rao… do not send it" | Draft saved in Gmail Drafts, formal wording, nothing sent | Pass (Gmail screenshots) |
+| D26 | FR-21 | Browser: type words in the address bar; open the menu; bookmark; open Bookmarks and History; Reader view | Search results; menu with Find, Reader, Desktop, text size, Share, Copy, Open in Chrome; the bookmark is listed | Pass |
+| D27 | FR-09, FR-22 | "Open en.wikipedia.org/wiki/Mumbai and read the page", then tap Key facts | The agent opens the browser by itself; the chat returns a structured, dated fact list | Pass |
 | D17 | NFR-01 | 30 simple prompts | Median 1.6 s, on-device overhead about 0.1 s | Pass |
 | D18 | FR-27, 28 | Open the mailbox viewer in demo mode | Inbox with unread in bold; tabs for Sent and Drafts | Pass |
 | D19 | FR-27 | Ask Aurviz to draft an email, then to send one, then open the Drafts and Sent tabs | The Drafts and Sent tabs show the new messages | Pass |
@@ -122,8 +126,8 @@ Tested on the physical device against the deployed backend.
 | FR-18 OAuth | `token-vault.test.js` | D1 |
 | FR-19 Task management | `TaskExecutionPolicyTest` | D9 |
 | FR-20 Readable results | `ExecutionLogFormatterTest` | Screen check |
-| FR-21 Browser tools | `BrowserUrlTest` | D12 |
-| FR-22 AI on pages | n/a | D13 |
+| FR-21 Browser tools | `BrowserUrlTest` | D12, D26 |
+| FR-22 AI on pages | n/a | D13, D27 |
 | FR-23 Theme | n/a | D14 |
 | FR-24 Onboarding, shortcuts | n/a | D15 |
 | FR-25 Settings | n/a | D16 |

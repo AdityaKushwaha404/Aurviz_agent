@@ -23,12 +23,9 @@ val CategoryGeneral = Color(0xFF4F46E5)
 
 // ---- Semantic tokens: resolve against the active (light/dark) colour scheme ----
 val PrimaryBlue: Color @Composable get() = MaterialTheme.colorScheme.primary
-val PrimaryBlueVariant: Color @Composable get() = MaterialTheme.colorScheme.onPrimaryContainer
-val PrimaryTint: Color @Composable get() = MaterialTheme.colorScheme.primaryContainer
 val SecondaryTeal: Color @Composable get() = MaterialTheme.colorScheme.secondary
 val BackgroundLight: Color @Composable get() = MaterialTheme.colorScheme.background
 val SurfaceLight: Color @Composable get() = MaterialTheme.colorScheme.surface
-val CardBackground: Color @Composable get() = MaterialTheme.colorScheme.surface
 val TextPrimary: Color @Composable get() = MaterialTheme.colorScheme.onSurface
 val TextSecondary: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
 val ToolBadgeBackground: Color @Composable get() = MaterialTheme.colorScheme.surfaceVariant

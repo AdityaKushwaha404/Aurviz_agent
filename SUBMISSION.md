@@ -8,7 +8,9 @@
 | Architecture and design decisions | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
 | Test report and requirement-to-evidence matrix | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) |
 | Performance study | [docs/PERFORMANCE.md](docs/PERFORMANCE.md) |
-| Evaluator guide (no credentials needed) | [docs/EVALUATOR_GUIDE.md](docs/EVALUATOR_GUIDE.md) |
+| Evaluator guide (test account steps or demo mailbox) | [docs/EVALUATOR_GUIDE.md](docs/EVALUATOR_GUIDE.md) |
+| Email flow with proof screenshots | [docs/EMAIL_FLOW.md](docs/EMAIL_FLOW.md) |
+| Browser feature guide | [docs/BROWSER.md](docs/BROWSER.md) |
 | User guide, API, deployment | [docs/USER_GUIDE.md](docs/USER_GUIDE.md), [docs/API.md](docs/API.md), [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) |
 
 ## Status at a glance

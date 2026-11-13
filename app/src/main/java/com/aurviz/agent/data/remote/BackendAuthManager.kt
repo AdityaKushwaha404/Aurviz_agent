@@ -26,19 +26,6 @@ class BackendAuthManager(
             api.sendEmail(token, recipient, subject, body, idempotencyKey)
         }
 
-    suspend fun scheduleEmail(
-        recipient: String,
-        subject: String,
-        body: String,
-        scheduledAt: String,
-        timeZone: String,
-        idempotencyKey: String
-    ) = withContext(Dispatchers.IO) {
-        val token = currentAccessToken()
-            ?: throw IOException("Sign in under Settings, Mailbox before scheduling email.")
-        api.scheduleEmail(token, recipient, subject, body, scheduledAt, timeZone, idempotencyKey)
-    }
-
     suspend fun searchEmails(query: String, maxResults: Int) = withContext(Dispatchers.IO) {
         api.searchEmails(requireToken(), query, maxResults)
     }

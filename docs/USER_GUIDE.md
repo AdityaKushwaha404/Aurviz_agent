@@ -4,6 +4,7 @@
 Type in the message box or tap the microphone. While Aurviz works, the header shows what it is doing ("Searching your inbox…"). Every tool it uses appears as a card, so you can see exactly what happened.
 
 Examples:
+
 - "Summarize my unread emails from today"
 - "Draft a reply to the interview invitation, but don't send it"
 - "Remember that my manager is Alex and her email is alex@company.com"
@@ -12,6 +13,7 @@ Examples:
 
 ## Mailboxes
 Choose where Aurviz reads and writes mail in **Settings, Mailbox**:
+
 - **Test Gmail account** (default): a real Gmail account made for testing. The email, password and sign-in steps are shown in Settings. It can only send to itself or example.com addresses.
 - **My own Gmail**: sign in with Google.
 - **Demo mailbox**: sample emails on your phone. Works offline.
@@ -34,6 +36,7 @@ Android may start a scheduled task a few minutes late to save battery.
 
 ## Browser
 Tap the globe in the chat header.
+
 - Type a website or just words to search.
 - Menu (three dots): Find in page, Reader view, Desktop site, Larger or smaller text, Share link, Copy link, Open in Chrome.
 - Bottom bar: back, forward, home, bookmark star, bookmarks and history.

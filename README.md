@@ -25,7 +25,7 @@ Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instr
 | **Three mailboxes** | **Test Gmail account** (credentials and steps shown in the app), **your own Gmail** (Google sign-in), or the offline **Demo mailbox** (sample data you can view and reset) |
 | **Remember** | Saves preferences ("I prefer formal emails") and applies them to later answers. View, edit and delete memories |
 | **Schedule** | "Every morning at 9, summarize my inbox" runs in the background with retries, pause and resume, notifications and a full history |
-| **Browse** | A controlled in-app browser with search, find in page, reader view, bookmarks, and AI actions that summarize or answer questions about the open page |
+| **Browse** | A real in-app browser: address bar that searches, find in page, reader view, desktop site, bookmarks and history, share, plus AI actions (Summarize, Key facts, Explain, Ask) on the open page. The agent can drive it too ([details](docs/BROWSER.md)) |
 | **Stay safe** | OAuth (no passwords), encrypted tokens, approval before any send, background runs can never send |
 | **Explain failures** | Plain-language errors with a next step and a Try again button |
 
@@ -83,6 +83,8 @@ cd backend && npm ci && npm test    # 18 backend tests
 |---|---|
 | [Evaluator Guide](docs/EVALUATOR_GUIDE.md) | Test every feature in ten minutes without credentials |
 | [Software Requirements Specification](docs/SRS.md) | Functional and non-functional requirements with acceptance criteria |
+| [Email Flow](docs/EMAIL_FLOW.md) | Real Gmail with the test account: sign-in, search, approved send and drafts, proven with Gmail screenshots |
+| [Browser](docs/BROWSER.md) | Every browser feature with screenshots, agent browsing and AI on pages |
 | [Architecture](docs/ARCHITECTURE.md) | Design, diagrams, security, decisions and trade-offs |
 | [Test Report](docs/TEST_REPORT.md) | Automated and on-device results, requirement-to-evidence matrix |
 | [Performance](docs/PERFORMANCE.md) | Latency measured on a physical device |

@@ -101,17 +101,12 @@ class SecurePreferences(context: Context) {
     private val _mailSource = MutableStateFlow(initialMailSource())
     val mailSource: StateFlow<String> = _mailSource.asStateFlow()
 
-    private val _demoMode = MutableStateFlow(_mailSource.value == SOURCE_DEMO)
-    /** True while the built-in sample mailbox is selected. */
-    val demoMode: StateFlow<Boolean> = _demoMode.asStateFlow()
-
     fun isDemoMode(): Boolean = _mailSource.value == SOURCE_DEMO
 
     fun setMailSource(source: String) {
         require(source in setOf(SOURCE_TEST, SOURCE_DEMO, SOURCE_OWN))
         preferences.edit().putString(KEY_MAIL_SOURCE, source).apply()
         _mailSource.value = source
-        _demoMode.value = source == SOURCE_DEMO
     }
 
     private fun initialMailSource(): String {

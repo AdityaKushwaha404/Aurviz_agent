@@ -1,18 +1,11 @@
-## Aurviz Personal AI Agent - Environment Configuration
-## Copy this file to 'local.properties' and fill in your Gemini API key.
-## NEVER commit your actual local.properties to git.
+## Copy this file to `local.properties` (it is git-ignored). NEVER commit the real file.
 
 sdk.dir=/Users/YOUR_USERNAME/Library/Android/sdk
 
-# Google Gemini API Key (Get a free key at https://aistudio.google.com/)
-GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
-
-# Optional: Default Email Account for testing
-DEFAULT_TEST_EMAIL=user@example.com
-
-# Optional: bundle a Gemini API key into the APK so evaluators need no setup (never commit this file)
+# Optional: bundle a Gemini API key into the APK so reviewers need no setup.
+# Get a free key at https://aistudio.google.com/ . A key typed in the app (Settings, AI model) overrides it.
 gemini.api.key=
 
-# Reviewer test account shown in the app (optional)
+# Optional: the reviewer test account shown inside the app (Settings, Mailbox).
 test.account.email=adityatesting404@gmail.com
 test.account.password=
