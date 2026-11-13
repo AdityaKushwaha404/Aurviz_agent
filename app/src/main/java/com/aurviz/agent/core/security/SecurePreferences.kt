@@ -49,7 +49,8 @@ class SecurePreferences(context: Context) {
     }
 
     fun getDefaultEmail(): String {
-        return securePreferences?.getString(KEY_DEFAULT_EMAIL, null) ?: "user@example.com"
+        return securePreferences?.getString(KEY_DEFAULT_EMAIL, null)?.takeIf { it.isNotBlank() }
+            ?: BuildConfig.TEST_ACCOUNT_EMAIL
     }
 
     fun saveDefaultEmail(email: String) {
