@@ -18,7 +18,10 @@ class JsonConversationStore(private val file: File) : ConversationStore {
                 when (item.getString("type")) {
                     "user" -> add(AgentMessage.UserPrompt(id, timestamp, item.getString("text"), item.optBoolean("voice")))
                     "agent" -> add(AgentMessage.AgentResponse(id, timestamp, item.getString("text")))
-                    "error" -> add(AgentMessage.ErrorMessage(id, timestamp, item.getString("text")))
+                    "error" -> add(AgentMessage.ErrorMessage(
+                        id, timestamp, item.getString("text"),
+                        item.optString("retry").takeIf(String::isNotBlank)
+                    ))
                     "tool" -> add(AgentMessage.ToolAction(
                         id, timestamp, item.getString("name"), item.optString("args"),
                         runCatching { ToolStatus.valueOf(item.optString("status")) }.getOrDefault(ToolStatus.FAILED),
@@ -38,6 +41,7 @@ class JsonConversationStore(private val file: File) : ConversationStore {
                 is AgentMessage.UserPrompt -> item.put("type", "user").put("text", message.text).put("voice", message.isVoiceInput)
                 is AgentMessage.AgentResponse -> item.put("type", "agent").put("text", message.text)
                 is AgentMessage.ErrorMessage -> item.put("type", "error").put("text", message.error)
+                    .put("retry", message.retryPrompt.orEmpty())
                 is AgentMessage.ToolAction -> item.put("type", "tool").put("name", message.toolName)
                     .put("args", message.argumentsJson).put("status", message.status.name)
                     .put("result", message.resultOutput.orEmpty())

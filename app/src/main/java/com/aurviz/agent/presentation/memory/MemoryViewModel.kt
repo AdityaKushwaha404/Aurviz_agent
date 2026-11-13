@@ -39,6 +39,15 @@ class MemoryViewModel(
         }
     }
 
+    fun updateMemory(memory: Memory, key: String, content: String, category: String) {
+        viewModelScope.launch {
+            // Same id + REPLACE conflict strategy updates the row in place.
+            memoryRepository.insertMemory(
+                memory.copy(key = key.trim(), content = content.trim(), category = category)
+            )
+        }
+    }
+
     fun addManualMemory(key: String, content: String, category: String) {
         viewModelScope.launch {
             memoryRepository.insertMemory(

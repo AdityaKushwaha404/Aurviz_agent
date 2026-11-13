@@ -23,7 +23,7 @@ Standalone Node.js API and worker for Google OAuth and durable Gmail scheduling.
 
 Health check: `GET /health`. To begin OAuth open `/auth/google`; successful approval redirects to the app URI with a short-lived one-time code. Android exchanges it at `POST /api/v1/auth/exchange` and stores the opaque returned token in secure storage.
 
-Publish or configure the OAuth consent screen test users. Enable Gmail API. Requested scopes are `openid`, `email`, and `https://www.googleapis.com/auth/gmail.send`.
+Publish or configure the OAuth consent screen test users. Enable Gmail API. Requested scopes are `openid`, `email`, `https://www.googleapis.com/auth/gmail.send` (approved sends), `https://www.googleapis.com/auth/gmail.readonly` (inbox search/read for summaries) and `https://www.googleapis.com/auth/gmail.compose` (save drafts). Add all three Gmail scopes on the consent screen. `gmail.readonly` is a restricted scope: in Testing mode it works for listed test users (with Google's unverified-app warning); public release requires Google verification. Accounts connected before these scopes were added must disconnect and reconnect; until then read endpoints return 403 with a reconnect message.
 
 ## API
 
@@ -44,6 +44,9 @@ Authenticated routes use `Authorization: Bearer <device-session-token>`. Send/sc
 | GET | `/api/v1/emails/scheduled/:id` | Get one email and execution history |
 | PATCH | `/api/v1/emails/scheduled/:id` | Update a pending email |
 | DELETE | `/api/v1/emails/scheduled/:id` | Cancel a pending email |
+| GET | `/api/v1/gmail/messages?q=&max=` | Search inbox (Gmail query syntax, max 15); returns sender, subject, date, snippet, id |
+| GET | `/api/v1/gmail/messages/:id` | Read one message as plain text (HTML converted, attachments skipped, 6,000-char cap) |
+| POST | `/api/v1/gmail/drafts` | Save a draft without sending |
 
 Schedule JSON uses an ISO-8601 instant plus IANA timezone for display/audit:
 
@@ -70,6 +73,6 @@ Explicit Gmail HTTP 429 quota rejections receive bounded retries. Other 4xx resp
 
 ## Tests and unverified work
 
-`npm test` runs deterministic token-vault and validation unit tests. `npm run prisma:generate` checks generated client compatibility; migrate against a disposable/local database.
+`npm test` runs 14 deterministic tests: token vault encryption/tamper checks, validation and header-injection rejection, worker queue provisioning, and Gmail inbox helpers (MIME body extraction, HTML-to-text, header lookup, raw draft building, Google error mapping, result capping) against a fake Gmail client. `npm run prisma:generate` checks generated client compatibility; migrate against a disposable/local database.
 
-Not yet tested: real OAuth, real Gmail delivery or refresh, worker restart with a live PostgreSQL instance, scheduling/cancel races, or Android-to-hosted-backend communication. These require rotated Google credentials in a private environment, Cloud consent/API configuration, and a reachable database/backend. Unit tests do not prove delivery.
+The hosted deployment answers `GET /health` with `{"status":"ok"}` (database and queue reachable). Not yet tested end-to-end by automated tests: real OAuth, real Gmail delivery, search or refresh, worker restart with a live PostgreSQL instance, scheduling/cancel races, or Android-to-hosted-backend communication. These require rotated Google credentials in a private environment, Cloud consent/API configuration, and a reachable database/backend. Unit tests do not prove delivery.

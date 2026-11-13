@@ -3,6 +3,18 @@ import { env } from "../config/env.js";
 import { prisma } from "../database/prisma.js";
 import { decryptRefreshToken, encryptRefreshToken } from "./token-vault.js";
 
+/**
+ * send: deliver approved mail. readonly: search/read inbox for summaries.
+ * compose: create drafts without sending.
+ */
+export const GMAIL_SCOPES = [
+  "openid",
+  "email",
+  "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.compose"
+];
+
 export function createOAuthClient() {
   return new google.auth.OAuth2(
     env.googleClientId,
@@ -17,7 +29,7 @@ export function authorizationUrl(state) {
     include_granted_scopes: false,
     prompt: "consent",
     state,
-    scope: ["openid", "email", "https://www.googleapis.com/auth/gmail.send"]
+    scope: GMAIL_SCOPES
   });
 }
 

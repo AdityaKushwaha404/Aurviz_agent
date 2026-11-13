@@ -212,33 +212,126 @@ fun AgentScreen(
                 .padding(paddingValues)
         ) {
             if (messages.isEmpty()) {
-                // Empty state greeting
+                // Empty state greeting with rich quick prompt cards
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(24.dp),
+                        .padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.SmartToy,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = PrimaryBlue
-                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = PrimaryBlue.copy(alpha = 0.1f),
+                        modifier = Modifier.size(80.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.SmartToy,
+                                contentDescription = null,
+                                modifier = Modifier.size(44.dp),
+                                tint = PrimaryBlue
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         "Aurviz Personal AI Agent",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
+                        fontSize = 22.sp,
+                        color = TextPrimary
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        "Autonomous mobile agent that understands voice commands, manages personal memories, automates web navigation, and executes scheduled real-world tasks.",
+                        "Autonomous assistant for voice commands, personal memory, web automation, and background task execution.",
                         color = TextSecondary,
-                        fontSize = 14.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        fontSize = 13.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
                     )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Text(
+                        "TRY A QUICK COMMAND",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PrimaryBlue,
+                        letterSpacing = 1.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Surface(
+                            color = SurfaceLight,
+                            shape = RoundedCornerShape(16.dp),
+                            shadowElevation = 1.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { textInput = "Every morning at 9 AM, check my important emails and prepare a summary." }
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = CircleShape, color = PrimaryBlue.copy(alpha = 0.1f), modifier = Modifier.size(36.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Schedule, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Schedule Daily Email Digest", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Every morning at 9 AM, check emails & summarize.", fontSize = 12.sp, color = TextSecondary)
+                                }
+                            }
+                        }
+
+                        Surface(
+                            color = SurfaceLight,
+                            shape = RoundedCornerShape(16.dp),
+                            shadowElevation = 1.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { textInput = "Remember that my manager is Alex and email is alex@aurviz.com" }
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = CircleShape, color = PrimaryBlue.copy(alpha = 0.1f), modifier = Modifier.size(36.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Psychology, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Save Personal Memory", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Remember that my manager is Alex (alex@aurviz.com).", fontSize = 12.sp, color = TextSecondary)
+                                }
+                            }
+                        }
+
+                        Surface(
+                            color = SurfaceLight,
+                            shape = RoundedCornerShape(16.dp),
+                            shadowElevation = 1.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { textInput = "Browse https://news.ycombinator.com and extract top headlines" }
+                        ) {
+                            Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Surface(shape = CircleShape, color = PrimaryBlue.copy(alpha = 0.1f), modifier = Modifier.size(36.dp)) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.Language, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text("Scrape Tech Headlines", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                    Text("Browse Hacker News and extract top tech stories.", fontSize = 12.sp, color = TextSecondary)
+                                }
+                            }
+                        }
+                    }
                 }
             } else {
                 LazyColumn(
@@ -249,7 +342,10 @@ fun AgentScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(messages, key = { it.id }) { message ->
-                        MessageItem(message)
+                        MessageItem(
+                            message = message,
+                            onRetry = if (isProcessing) null else { prompt -> viewModel.sendPrompt(prompt) }
+                        )
                     }
 
                     if (isProcessing) {
@@ -302,7 +398,7 @@ fun AgentScreen(
 }
 
 @Composable
-fun MessageItem(message: AgentMessage) {
+fun MessageItem(message: AgentMessage, onRetry: ((String) -> Unit)? = null) {
     when (message) {
         is AgentMessage.UserPrompt -> {
             Row(
@@ -407,7 +503,16 @@ fun MessageItem(message: AgentMessage) {
                 ) {
                     Icon(Icons.Default.Error, contentDescription = null, tint = ErrorRed, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(message.error, color = ErrorRed, fontSize = 13.sp)
+                    Text(message.error, color = ErrorRed, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    val retryPrompt = message.retryPrompt
+                    if (retryPrompt != null && onRetry != null) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = { onRetry(retryPrompt) }) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Retry", fontSize = 13.sp)
+                        }
+                    }
                 }
             }
         }
@@ -465,9 +570,9 @@ fun ConfirmationDialog(
     onConfirm: (Map<String, Any?>?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var editableRecipient by remember(action.actionId) { mutableStateOf(if (action is SensitiveAction.SendEmail) action.recipient else "") }
-    var editableSubject by remember(action.actionId) { mutableStateOf(if (action is SensitiveAction.SendEmail) action.subject else "") }
-    var editableBody by remember(action.actionId) { mutableStateOf(if (action is SensitiveAction.SendEmail) action.body else "") }
+    var editableRecipient by remember(action.actionId) { mutableStateOf(when (action) { is SensitiveAction.SendEmail -> action.recipient; is SensitiveAction.ScheduleEmail -> action.recipient; else -> "" }) }
+    var editableSubject by remember(action.actionId) { mutableStateOf(when (action) { is SensitiveAction.SendEmail -> action.subject; is SensitiveAction.ScheduleEmail -> action.subject; else -> "" }) }
+    var editableBody by remember(action.actionId) { mutableStateOf(when (action) { is SensitiveAction.SendEmail -> action.body; is SensitiveAction.ScheduleEmail -> action.body; else -> "" }) }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
@@ -477,6 +582,7 @@ fun ConfirmationDialog(
             Text(
                 when (action) {
                     is SensitiveAction.SendEmail -> "Review email before sending"
+                    is SensitiveAction.ScheduleEmail -> "Review scheduled email"
                     is SensitiveAction.BrowserInteraction -> "Review browser interaction"
                     is SensitiveAction.DeleteData -> "Sensitive action approval"
                 },
@@ -489,6 +595,7 @@ fun ConfirmationDialog(
                 Text(
                     when (action) {
                         is SensitiveAction.SendEmail -> "Approving sends this message from the connected Gmail account. Review every field before continuing."
+                        is SensitiveAction.ScheduleEmail -> "Approving schedules this message through Aurviz. Review the recipient, content, date, time, and timezone."
                         is SensitiveAction.BrowserInteraction -> "The agent will interact with the current website. Review the target and data before continuing."
                         is SensitiveAction.DeleteData -> "The agent is requesting permission to execute an external action. Review the details below:"
                     },
@@ -496,7 +603,10 @@ fun ConfirmationDialog(
                     color = TextSecondary
                 )
                 when (action) {
-                    is SensitiveAction.SendEmail -> {
+                    is SensitiveAction.SendEmail, is SensitiveAction.ScheduleEmail -> {
+                        if (action is SensitiveAction.ScheduleEmail) {
+                            Text("Scheduled for ${action.scheduledAt} (${action.timeZone})", fontWeight = FontWeight.SemiBold)
+                        }
                         Surface(
                             color = BackgroundLight,
                             shape = RoundedCornerShape(8.dp),
@@ -551,6 +661,13 @@ fun ConfirmationDialog(
                             "subject" to editableSubject,
                             "body" to editableBody
                         )
+                        is SensitiveAction.ScheduleEmail -> mapOf(
+                            "recipient" to editableRecipient,
+                            "subject" to editableSubject,
+                            "body" to editableBody,
+                            "scheduledAt" to action.scheduledAt,
+                            "timeZone" to action.timeZone
+                        )
                         is SensitiveAction.BrowserInteraction -> buildMap {
                             put("selector", action.selector)
                             action.text?.let { put("text", it) }
@@ -564,6 +681,7 @@ fun ConfirmationDialog(
                 Text(
                     when (action) {
                         is SensitiveAction.SendEmail -> "Send email"
+                        is SensitiveAction.ScheduleEmail -> "Schedule email"
                         is SensitiveAction.BrowserInteraction -> "Approve action"
                         is SensitiveAction.DeleteData -> "Approve & Execute"
                     }

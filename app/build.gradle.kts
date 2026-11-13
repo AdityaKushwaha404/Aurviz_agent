@@ -11,6 +11,9 @@ android {
 
     defaultConfig {
         applicationId = "com.aurviz.agent"
+        buildConfigField("String", "API_BASE_URL", "\"https://aurviz-backend.onrender.com\"")
+        // Stable Gemini model used by every AI request. Update here only.
+        buildConfigField("String", "GEMINI_MODEL", "\"gemini-3.5-flash-lite\"")
         minSdk = 26
         targetSdk = 34
         versionCode = 1
@@ -83,12 +86,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Google Identity Services for scoped Gmail API authorization
-    implementation(libs.play.services.auth)
-
-    // Google Gemini Generative AI SDK
-    implementation(libs.google.generativeai)
-
     // OkHttp (for direct REST API and web automation DOM scraping / HTTP fetching)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
@@ -99,6 +96,8 @@ dependencies {
     // Unit Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    // Real org.json implementation for JVM unit tests (android.jar only exposes stubs).
+    testImplementation(libs.org.json)
 
     // Debugging
     debugImplementation(libs.androidx.ui.tooling)

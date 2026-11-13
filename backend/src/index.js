@@ -10,7 +10,9 @@ import { env } from "./config/env.js";
 import { prisma } from "./database/prisma.js";
 import authRoutes from "./routes/auth.js";
 import emailRoutes from "./routes/emails.js";
+import gmailRoutes from "./routes/gmail.js";
 import { ensureEmailQueue, startEmailWorker } from "./scheduler/worker.js";
+import { EMAIL_QUEUE } from "./services/email-queue.js";
 
 const app = express();
 app.disable("x-powered-by");
@@ -50,10 +52,20 @@ app.use(session({
   }
 }));
 
-app.get("/health", (_req, res) => res.json({ status: "ok" }));
+app.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    const queue = await app.locals.boss?.getQueue(EMAIL_QUEUE);
+    if (!queue) return res.status(503).json({ status: "unavailable" });
+    res.json({ status: "ok" });
+  } catch {
+    res.status(503).json({ status: "unavailable" });
+  }
+});
 app.use("/auth", authRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/emails", emailRoutes);
+app.use("/api/v1/gmail", gmailRoutes);
 
 app.use((error, _req, res, _next) => {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

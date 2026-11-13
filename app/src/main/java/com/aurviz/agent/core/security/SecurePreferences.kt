@@ -52,6 +52,25 @@ class SecurePreferences(context: Context) {
             .apply()
     }
 
+    fun getBackendAccessToken(): String? = securePreferences?.getString(KEY_BACKEND_ACCESS_TOKEN, null)
+
+    fun getBackendSessionExpiresAt(): Long = securePreferences?.getLong(KEY_BACKEND_SESSION_EXPIRES_AT, 0L) ?: 0L
+
+    fun saveBackendSession(token: String, expiresAtEpochMillis: Long) {
+        checkNotNull(securePreferences) { "Encrypted storage is unavailable. The backend session was not saved." }
+            .edit()
+            .putString(KEY_BACKEND_ACCESS_TOKEN, token)
+            .putLong(KEY_BACKEND_SESSION_EXPIRES_AT, expiresAtEpochMillis)
+            .apply()
+    }
+
+    fun clearBackendAccessToken() {
+        securePreferences?.edit()
+            ?.remove(KEY_BACKEND_ACCESS_TOKEN)
+            ?.remove(KEY_BACKEND_SESSION_EXPIRES_AT)
+            ?.apply()
+    }
+
     fun isVoiceFeedbackEnabled(): Boolean {
         return preferences.getBoolean(KEY_VOICE_FEEDBACK, true)
     }
@@ -66,6 +85,8 @@ class SecurePreferences(context: Context) {
         private const val PREFS_FILENAME = "secure_agent_prefs"
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
         private const val KEY_DEFAULT_EMAIL = "default_email"
+        private const val KEY_BACKEND_ACCESS_TOKEN = "backend_access_token"
+        private const val KEY_BACKEND_SESSION_EXPIRES_AT = "backend_session_expires_at"
         private const val KEY_VOICE_FEEDBACK = "voice_feedback"
     }
 }

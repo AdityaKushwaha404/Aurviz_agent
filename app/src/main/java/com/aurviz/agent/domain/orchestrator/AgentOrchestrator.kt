@@ -3,14 +3,20 @@ package com.aurviz.agent.domain.orchestrator
 import com.aurviz.agent.data.remote.GeminiAgentClient
 import com.aurviz.agent.data.remote.GeminiAgentResponse
 import com.aurviz.agent.data.remote.GeminiConversationTurn
+import com.aurviz.agent.data.remote.GeminiErrorKind
 import com.aurviz.agent.data.remote.GeminiFunctionResponse
+import com.aurviz.agent.domain.metrics.NoOpPerformanceRecorder
+import com.aurviz.agent.domain.metrics.PerformanceRecorder
 import com.aurviz.agent.domain.model.AgentMessage
 import com.aurviz.agent.domain.model.SensitiveAction
 import com.aurviz.agent.domain.model.ToolExecutionRequest
+import com.aurviz.agent.domain.model.ToolExecutionResponse
 import com.aurviz.agent.domain.model.ToolStatus
 import com.aurviz.agent.domain.repository.MemoryRepository
 import com.aurviz.agent.domain.repository.ConversationStore
+import com.aurviz.agent.domain.tool.AgentTool
 import com.aurviz.agent.domain.tool.ToolRegistry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -18,13 +24,38 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 import kotlin.coroutines.resume
 
+/** Upper bound on model turns for one interactive request (plan + tool calls + answer). */
+internal const val MAX_INTERACTIVE_STEPS = 8
+
+/** Upper bound on model turns for one background scheduled run. */
+internal const val MAX_AUTONOMOUS_STEPS = 6
+
+/** Outcome of an autonomous (WorkManager) scheduled run. */
+sealed class AutonomousTaskResult {
+    data class Success(val summary: String) : AutonomousTaskResult()
+    data class Skipped(val message: String) : AutonomousTaskResult()
+    data class Failure(val message: String, val retryable: Boolean = false) : AutonomousTaskResult()
+}
+
+/**
+ * Separates the three concerns of the agent:
+ *  - reasoning: Gemini decides the next step (a tool call or a final answer);
+ *  - execution: Kotlin [AgentTool]s perform the operation;
+ *  - scheduling: WorkManager later calls [executeAutonomousTask].
+ */
 class AgentOrchestrator(
     private val geminiClient: GeminiAgentClient,
     private val toolRegistry: ToolRegistry,
     private val memoryRepository: MemoryRepository,
-    private val conversationStore: ConversationStore? = null
+    private val conversationStore: ConversationStore? = null,
+    private val performanceRecorder: PerformanceRecorder = NoOpPerformanceRecorder,
+    private val clock: () -> Long = System::currentTimeMillis
 ) {
     private val _messages = MutableStateFlow<List<AgentMessage>>(emptyList())
     val messages: StateFlow<List<AgentMessage>> = _messages.asStateFlow()
@@ -54,27 +85,14 @@ class AgentOrchestrator(
         if (cleanPrompt.isBlank()) return
         if (!processingMutex.tryLock()) return
 
+        val turnStartedAt = clock()
+        var turnSucceeded = false
         try {
             addMessage(AgentMessage.UserPrompt(text = cleanPrompt, isVoiceInput = isVoiceInput))
             _isProcessing.value = true
-            // 1. Retrieve relevant memories for context injection
-            val searchTerms = cleanPrompt.lowercase()
-                .split(Regex("[^\\p{L}\\p{N}]+"))
-                .filter { it.length >= 3 }
-                .distinct()
-            val matchedMemories = searchTerms.flatMap { memoryRepository.searchMemories(it) }
-                .distinctBy { it.id }
-                .take(6)
-            val recentMemories = matchedMemories.ifEmpty { memoryRepository.getRecentMemories(6) }
-            val memoriesContext = if (recentMemories.isNotEmpty()) {
-                "Known User Context & Memories:\n" + recentMemories.joinToString("\n") { "- ${it.key}: ${it.content}" }
-            } else {
-                "No previous memories stored."
-            }
 
-            // 2. Prepare system instructions and tool definitions
-            val systemInstruction = "You are Aurviz Personal AI Agent, an autonomous mobile agent. " +
-                    "You reason step-by-step and use tools to perform tasks for the user.\n$memoriesContext"
+            // 1. Retrieve relevant memories so saved preferences shape the answer.
+            val systemInstruction = interactiveSystemInstruction(memoryContextFor(cleanPrompt))
             val toolsPrompt = toolRegistry.getSystemPromptToolDescriptions()
 
             val conversationHistory = _messages.value
@@ -89,145 +107,298 @@ class AgentOrchestrator(
                 }.toMutableList()
             conversationHistory.add(GeminiConversationTurn("user", text = cleanPrompt))
 
-            // 3. Multi-Step ReAct Loop (Up to 4 iterations)
-            var currentIteration = 0
-            val maxIterations = 4
+            // 2. Bounded reason -> act -> observe loop.
+            var step = 0
             var isDone = false
-
-            while (currentIteration < maxIterations && !isDone) {
-                currentIteration++
-
-                val response = geminiClient.generateAgentTurn(
-                    systemInstruction = systemInstruction,
-                    conversationHistory = conversationHistory,
-                    toolsPrompt = toolsPrompt
-                )
-
-                when (response) {
+            while (step < MAX_INTERACTIVE_STEPS && !isDone) {
+                step++
+                when (val response = timedModelCall(systemInstruction, conversationHistory, toolsPrompt)) {
                     is GeminiAgentResponse.Success -> {
                         val toolCall = response.toolCall
-                        if (toolCall != null) {
-                            // Agent decided to call a tool
-                            val toolActionMsg = AgentMessage.ToolAction(
-                                toolName = toolCall.toolName,
-                                argumentsJson = encodeArguments(toolCall.arguments),
-                                status = ToolStatus.RUNNING
-                            )
-                            addMessage(toolActionMsg)
-
-                            val targetTool = toolRegistry.getTool(toolCall.toolName)
-                            if (targetTool == null) {
-                                val errorOutput = "Tool '${toolCall.toolName}' is not available."
-                                updateLastToolAction(ToolStatus.FAILED, errorOutput)
-                                conversationHistory.add(modelFunctionCallTurn(response, toolCall))
-                                conversationHistory.add(GeminiConversationTurn("user", functionResponse = GeminiFunctionResponse(toolCall.toolName, errorOutput, toolCall.id)))
-                                continue
-                            }
-
-                            // Check if tool is sensitive (e.g. Email sending requires Human-in-the-Loop approval)
-                            if (targetTool.isSensitive) {
-                                val preflight = targetTool.execute(toolCall.arguments)
-                                val sensitiveAction = preflight.sensitiveActionRequired
-                                if (sensitiveAction == null) {
-                                    updateLastToolAction(ToolStatus.FAILED, preflight.output)
-                                    conversationHistory.add(modelFunctionCallTurn(response, toolCall))
-                                    conversationHistory.add(GeminiConversationTurn("user", functionResponse = GeminiFunctionResponse(toolCall.toolName, preflight.output, toolCall.id)))
-                                    continue
-                                }
-
-                                updateLastToolAction(ToolStatus.AWAITING_CONFIRMATION, "Awaiting your explicit confirmation...")
-                                _pendingConfirmation.value = sensitiveAction
-
-                                // Wait for user decision via confirmation callback
-                                val (userApproved, confirmedArguments) = suspendConfirmationWait()
-                                _pendingConfirmation.value = null
-
-                                if (userApproved) {
-                                    val approvedArguments = confirmedArguments ?: toolCall.arguments
-                                    updateLastToolAction(ToolStatus.CONFIRMED, "User approved the email contents for delivery.")
-                                    val toolResult = targetTool.executeConfirmed(sensitiveAction.actionId, approvedArguments)
-                                    val finalStatus = if (toolResult.isSuccess) ToolStatus.SUCCESS else ToolStatus.FAILED
-                                    updateLastToolAction(finalStatus, toolResult.output)
-                                    conversationHistory.add(modelFunctionCallTurn(response, toolCall))
-                                    conversationHistory.add(GeminiConversationTurn("user", functionResponse = GeminiFunctionResponse(toolCall.toolName, toolResult.output, toolCall.id)))
-                                } else {
-                                    updateLastToolAction(ToolStatus.CANCELLED, "Action cancelled by user.")
-                                    conversationHistory.add(modelFunctionCallTurn(response, toolCall))
-                                    conversationHistory.add(GeminiConversationTurn("user", functionResponse = GeminiFunctionResponse(toolCall.toolName, "Action was cancelled by user.", toolCall.id)))
-                                }
-                            } else {
-                                // Non-sensitive tool -> Execute directly
-                                val toolResult = targetTool.execute(toolCall.arguments)
-                                val finalStatus = if (toolResult.isSuccess) ToolStatus.SUCCESS else ToolStatus.FAILED
-                                updateLastToolAction(finalStatus, toolResult.output)
-
-                                conversationHistory.add(modelFunctionCallTurn(response, toolCall))
-                                conversationHistory.add(GeminiConversationTurn("user", functionResponse = GeminiFunctionResponse(toolCall.toolName, toolResult.output, toolCall.id)))
-                            }
-                        } else {
-                            // Final text response from Gemini
+                        if (toolCall == null) {
                             val cleanText = cleanMarkdownResponse(response.text)
                             addMessage(AgentMessage.AgentResponse(text = cleanText))
                             _speechEvents.emit(cleanText)
+                            turnSucceeded = true
                             isDone = true
+                        } else {
+                            val output = handleInteractiveToolCall(toolCall)
+                            conversationHistory.add(modelFunctionCallTurn(response, toolCall))
+                            conversationHistory.add(
+                                GeminiConversationTurn(
+                                    "user",
+                                    functionResponse = GeminiFunctionResponse(toolCall.toolName, output, toolCall.id)
+                                )
+                            )
                         }
                     }
+
                     is GeminiAgentResponse.Error -> {
-                        if (response.message.contains("API key is not configured", ignoreCase = true)) {
-                            val fallbackAnswer = runDeterministicFallback(cleanPrompt)
-                            if (fallbackAnswer != null) {
-                                addMessage(AgentMessage.AgentResponse(text = fallbackAnswer))
-                                _speechEvents.emit(fallbackAnswer)
-                            } else {
-                                addMessage(AgentMessage.ErrorMessage(error = response.message))
-                            }
+                        val localAnswer = if (response.kind == GeminiErrorKind.RATE_LIMITED ||
+                            response.kind == GeminiErrorKind.SERVER_ERROR
+                        ) localAnswerFor(cleanPrompt) else null
+                        if (localAnswer != null) {
+                            addMessage(AgentMessage.AgentResponse(text = localAnswer))
+                            _speechEvents.emit(localAnswer)
                         } else {
-                            addMessage(AgentMessage.ErrorMessage(error = response.message))
+                            addMessage(
+                                AgentMessage.ErrorMessage(
+                                    error = response.message,
+                                    retryPrompt = cleanPrompt.takeIf { response.retryable }
+                                )
+                            )
                         }
                         isDone = true
                     }
                 }
             }
+
+            if (!isDone) {
+                // Never end a request silently: report the step limit and offer a retry.
+                addMessage(
+                    AgentMessage.ErrorMessage(
+                        error = "I ran $MAX_INTERACTIVE_STEPS steps without reaching a final answer. " +
+                            "Completed steps are shown above. Try a narrower request.",
+                        retryPrompt = cleanPrompt
+                    )
+                )
+            }
+        } catch (cancellation: CancellationException) {
+            throw cancellation
         } catch (e: Exception) {
-            addMessage(AgentMessage.ErrorMessage(error = "Execution error: ${e.localizedMessage ?: "Unknown" }"))
+            addMessage(
+                AgentMessage.ErrorMessage(
+                    error = "Execution error: ${e.localizedMessage ?: e.javaClass.simpleName}",
+                    retryPrompt = cleanPrompt
+                )
+            )
         } finally {
+            _pendingConfirmation.value = null
+            pendingToolResume = null
             _isProcessing.value = false
             processingMutex.unlock()
+            performanceRecorder.record(PerformanceRecorder.AGENT_TURN, clock() - turnStartedAt, turnSucceeded)
         }
+    }
+
+    /** Runs one tool call in the foreground, including human approval when required. Returns the observation. */
+    private suspend fun handleInteractiveToolCall(toolCall: ToolExecutionRequest): String {
+        addMessage(
+            AgentMessage.ToolAction(
+                toolName = toolCall.toolName,
+                argumentsJson = encodeArguments(toolCall.arguments),
+                status = ToolStatus.RUNNING
+            )
+        )
+
+        val targetTool = toolRegistry.getTool(toolCall.toolName)
+        if (targetTool == null) {
+            val errorOutput = "Tool '${toolCall.toolName}' is not available."
+            updateLastToolAction(ToolStatus.FAILED, errorOutput)
+            return errorOutput
+        }
+
+        if (!targetTool.isSensitive) {
+            val toolResult = timedTool(targetTool) { targetTool.execute(toolCall.arguments) }
+            updateLastToolAction(if (toolResult.isSuccess) ToolStatus.SUCCESS else ToolStatus.FAILED, toolResult.output)
+            return toolResult.output
+        }
+
+        // Sensitive tools (send email, browser clicks/typing) need explicit approval.
+        val preflight = targetTool.execute(toolCall.arguments)
+        val sensitiveAction = preflight.sensitiveActionRequired
+        if (sensitiveAction == null) {
+            updateLastToolAction(ToolStatus.FAILED, preflight.output)
+            return preflight.output
+        }
+
+        updateLastToolAction(ToolStatus.AWAITING_CONFIRMATION, "Awaiting your explicit confirmation...")
+        _pendingConfirmation.value = sensitiveAction
+        val (userApproved, confirmedArguments) = suspendConfirmationWait()
+        _pendingConfirmation.value = null
+
+        if (!userApproved) {
+            updateLastToolAction(ToolStatus.CANCELLED, "Action cancelled by user.")
+            return "Action was cancelled by user. Do not retry it unless the user asks again."
+        }
+
+        updateLastToolAction(ToolStatus.CONFIRMED, "Approved by you. Executing…")
+        val approvedArguments = confirmedArguments ?: toolCall.arguments
+        val toolResult = timedTool(targetTool) {
+            targetTool.executeConfirmed(sensitiveAction.actionId, approvedArguments)
+        }
+        updateLastToolAction(if (toolResult.isSuccess) ToolStatus.SUCCESS else ToolStatus.FAILED, toolResult.output)
+        return toolResult.output
     }
 
     /**
      * Executes an autonomous scheduled task (called from WorkManager background worker).
+     *
+     * Sensitive tools (for example Gmail delivery) are never executed in the
+     * background. Instead the model is told the action was blocked so it can return a
+     * draft/summary, and the run is marked as requiring user approval.
      */
-    suspend fun executeAutonomousTask(promptAction: String): String {
-        val recentMemories = memoryRepository.getRecentMemories(5)
-        val memoriesContext = recentMemories.joinToString("\n") { "- ${it.key}: ${it.content}" }
-        val systemInstruction = "You are Aurviz AI executing a scheduled background task. Never perform external communication or destructive actions. If an action requires email, prepare a summary only and state that a user must review it in the app. Summarize the task result concisely.\n$memoriesContext"
+    suspend fun executeAutonomousTask(
+        promptAction: String,
+        additionalContext: String? = null
+    ): AutonomousTaskResult {
+        if (promptAction.isBlank()) {
+            return AutonomousTaskResult.Failure("Scheduled task has no instruction to execute.")
+        }
+
+        val extraContext = additionalContext?.takeIf(String::isNotBlank)
+            ?.let { "\n$it" }
+            .orEmpty()
+        val systemInstruction = "You are Aurviz AI executing a scheduled background task while the user is away. " +
+            "Use read-only tools to gather facts, then return a concise, well-structured summary. " +
+            "Never send messages or perform destructive actions. Never invent email contents, " +
+            "inbox items, or other facts that were not returned by a tool. If an action requires email " +
+            "delivery, prepare the draft text in your summary and state that the user must review it in the app.\n" +
+            "Current local time: ${currentTimeDescription()}.\n" +
+            memoryContextFor(promptAction) + extraContext
         val toolsPrompt = toolRegistry.getSystemPromptToolDescriptions()
 
         val history = mutableListOf(GeminiConversationTurn("user", text = promptAction))
-        repeat(4) {
-            when (val response = geminiClient.generateAgentTurn(systemInstruction, history, toolsPrompt)) {
-                is GeminiAgentResponse.Error -> return "Task failed: ${response.message}"
+        var blockedSensitiveTool: String? = null
+        var step = 0
+
+        while (step < MAX_AUTONOMOUS_STEPS) {
+            step++
+            when (val response = timedModelCall(systemInstruction, history, toolsPrompt)) {
+                is GeminiAgentResponse.Error -> return AutonomousTaskResult.Failure(
+                    message = "Gemini request failed: ${response.message}",
+                    retryable = response.retryable
+                )
+
                 is GeminiAgentResponse.Success -> {
                     val call = response.toolCall
-                        ?: return "Success: ${cleanMarkdownResponse(response.text)}"
-                    val tool = toolRegistry.getTool(call.toolName)
-                        ?: return "Task failed: tool ${call.toolName} was not found."
-                    if (tool.isSensitive) {
-                        return "Task failed: scheduled Gmail delivery requires a user-present approval flow. No email was sent."
+                    if (call == null) {
+                        val summary = cleanMarkdownResponse(response.text)
+                            .ifBlank { "Task completed without a summary." }
+                        return AutonomousTaskResult.Success(summary)
                     }
-                    val result = tool.execute(call.arguments)
-                    if (!result.isSuccess) return "Task failed: ${call.toolName}: ${result.output}"
+
+                    val tool = toolRegistry.getTool(call.toolName)
+                        ?: return AutonomousTaskResult.Failure(
+                            "Tool '${call.toolName}' is not available."
+                        )
+
+                    if (tool.isSensitive) {
+                        // Never execute a human-in-the-loop action from the background.
+                        blockedSensitiveTool = call.toolName
+                        history += modelFunctionCallTurn(response, call)
+                        history += GeminiConversationTurn(
+                            "user",
+                            functionResponse = GeminiFunctionResponse(
+                                call.toolName,
+                                "Blocked: '${call.toolName}' requires explicit user approval in the app and was not executed. " +
+                                    "Do not retry it. Continue without performing the action and include any draft text in your summary.",
+                                call.id
+                            )
+                        )
+                        continue
+                    }
+
+                    val result = timedTool(tool) { tool.execute(call.arguments) }
                     history += modelFunctionCallTurn(response, call)
                     history += GeminiConversationTurn(
                         "user",
                         functionResponse = GeminiFunctionResponse(call.toolName, result.output, call.id)
                     )
+                    if (!result.isSuccess) {
+                        // Do not report a run as successful when a required tool failed.
+                        return AutonomousTaskResult.Failure(
+                            message = "${call.toolName} failed: ${result.output}",
+                            retryable = result.retryable
+                        )
+                    }
                 }
             }
         }
-        return "Task failed: reached the four-step action limit before a final summary was returned."
+
+        return if (blockedSensitiveTool != null) {
+            AutonomousTaskResult.Failure(
+                "The task needs your approval to run '$blockedSensitiveTool'. Nothing was executed. " +
+                    "Open Aurviz and run the task again to review it."
+            )
+        } else {
+            AutonomousTaskResult.Failure(
+                "The task reached the $MAX_AUTONOMOUS_STEPS-step action limit before a final summary was returned."
+            )
+        }
+    }
+
+    private suspend fun memoryContextFor(prompt: String): String {
+        val startedAt = clock()
+        val searchTerms = prompt.lowercase()
+            .split(Regex("[^\\p{L}\\p{N}]+"))
+            .filter { it.length >= 3 && it !in STOP_WORDS }
+            .distinct()
+            .take(12)
+        val matched = searchTerms.flatMap { memoryRepository.searchMemories(it) }
+            .distinctBy { it.id }
+            .take(6)
+        // Always include a few recent memories so general preferences (tone, name) apply.
+        val memories = (matched + memoryRepository.getRecentMemories(4)).distinctBy { it.id }.take(8)
+        performanceRecorder.record(PerformanceRecorder.MEMORY_RETRIEVAL, clock() - startedAt, true)
+        return if (memories.isEmpty()) {
+            "No saved memories yet."
+        } else {
+            "Known user context and saved preferences (apply them):\n" +
+                memories.joinToString("\n") { "- ${it.key}: ${it.content}" }
+        }
+    }
+
+    private fun interactiveSystemInstruction(memoriesContext: String): String = """
+        You are Aurviz, a personal AI agent on the user's Android phone. You plan multi-step work and use tools to act.
+        Current local time: ${currentTimeDescription()}.
+
+        How to work:
+        1. Identify the user's intent and break complex requests into steps. Call one tool at a time and use its result to decide the next step.
+        2. Base factual statements only on tool results or saved memories. Never invent emails, senders, or web content.
+        3. Email rules:
+           - To check, find, or summarize email: call search_emails (Gmail query syntax), then read_email for the most relevant messages, then summarize.
+           - If the user says draft, prepare, or "don't send": use create_email_draft. Never call send_email in that case.
+           - Use send_email only when the user clearly asks to send. The app shows the user a confirmation before anything is sent.
+           - If the recipient is only a name or is ambiguous and no saved memory gives their email address, ask the user for it before drafting or sending.
+           - Apply saved preferences such as tone or signature.
+        4. "Every day/morning at X" requests: call schedule_task with isRecurring=true and a promptAction that describes what to do at run time.
+        5. Save durable facts the user asks you to remember with manage_memory; update or delete memories when they change their mind.
+        6. Web tasks: open_url / search_webpage, then read_page or scroll_page to extract information. Clicking or typing needs user approval.
+        7. When a tool fails, explain the problem plainly and suggest the fix (for example "Connect Gmail in Settings").
+        Reply concisely in plain text.
+
+        $memoriesContext
+    """.trimIndent()
+
+    private fun currentTimeDescription(): String {
+        val format = SimpleDateFormat("EEEE, d MMMM yyyy, HH:mm", Locale.US)
+        return "${format.format(Date(clock()))} (${TimeZone.getDefault().id})"
+    }
+
+    private suspend fun timedModelCall(
+        systemInstruction: String,
+        history: List<GeminiConversationTurn>,
+        toolsPrompt: String
+    ): GeminiAgentResponse {
+        val startedAt = clock()
+        val response = geminiClient.generateAgentTurn(systemInstruction, history, toolsPrompt)
+        performanceRecorder.record(
+            PerformanceRecorder.LLM_CALL,
+            clock() - startedAt,
+            response is GeminiAgentResponse.Success
+        )
+        return response
+    }
+
+    private suspend fun timedTool(
+        tool: AgentTool,
+        block: suspend () -> ToolExecutionResponse
+    ): ToolExecutionResponse {
+        val startedAt = clock()
+        val result = block()
+        performanceRecorder.record(PerformanceRecorder.tool(tool.name), clock() - startedAt, result.isSuccess)
+        return result
     }
 
     private fun modelFunctionCallTurn(
@@ -308,32 +479,35 @@ class AgentOrchestrator(
         .replace("\t", "\\t")
 
     /**
-     * Intelligent local fallback ensuring zero crash if reviewer tests before adding API key.
+     * Local answers used only when Gemini is rate limited or overloaded. They never
+     * execute tools or guess intent, so a real failure is still reported for every
+     * other request instead of being hidden behind a generic reply.
      */
-    private suspend fun runDeterministicFallback(prompt: String): String? {
-        val lower = prompt.lowercase()
+    private fun localAnswerFor(prompt: String): String? {
+        val lower = prompt.trim().lowercase().trimEnd('!', '.', '?')
         return when {
-            lower.contains("schedule") || lower.contains("remind me") || lower.contains("every morning") || lower.contains("every day") || lower.contains("daily") -> {
-                val tool = toolRegistry.getTool("schedule_task")
-                val recurring = lower.contains("every") || lower.contains("daily")
-                val res = tool?.execute(mapOf("timeExpression" to prompt, "promptAction" to prompt, "isRecurring" to recurring))
-                "I have parsed your scheduling request: ${res?.output}\n\n(Tip: Enter your free Gemini API key in Settings for full natural-language reasoning!)"
-            }
-            lower.contains("remember") || lower.contains("save to memory") || lower.contains("don't forget") -> {
-                val tool = toolRegistry.getTool("manage_memory")
-                val res = tool?.execute(mapOf("action" to "save", "key" to "user_preference", "content" to prompt))
-                "Saved to memory: ${res?.output}"
-            }
-            lower.contains("email") || lower.contains("send email") -> {
-                "Connect Gmail in Settings and provide the message details. Aurviz will show a review step before sending."
-            }
-            lower.contains("browse") || lower.contains("http") || lower.contains("website") -> {
-                val url = Regex("""https?://[^\s]+""").find(prompt)?.value ?: "https://news.ycombinator.com"
-                val tool = toolRegistry.getTool("browse_web")
-                val res = tool?.execute(mapOf("url" to url, "action" to "extract_headlines"))
-                "Browsed $url:\n${res?.output}"
-            }
+            lower in GREETINGS ->
+                "Hello! I'm Aurviz. The AI service is busy right now, so I can only answer simple messages. Please try your request again in a moment."
+            lower.contains("what can you do") || lower == "help" || lower.contains("who are you") ->
+                "I'm Aurviz, your personal agent. I can:\n" +
+                    "1. Check, search, summarize, and draft Gmail messages, and send email after you confirm.\n" +
+                    "2. Remember, update, and forget your preferences.\n" +
+                    "3. Schedule one-time or daily background tasks.\n" +
+                    "4. Browse websites and extract information.\n" +
+                    "The AI service is busy right now. Please retry in a moment."
+            lower == "thanks" || lower == "thank you" -> "You're welcome!"
             else -> null
         }
+    }
+
+    private companion object {
+        val GREETINGS = setOf(
+            "hi", "hello", "hey", "hii", "heyy", "greetings",
+            "good morning", "good evening", "good afternoon"
+        )
+        val STOP_WORDS = setOf(
+            "the", "and", "for", "that", "this", "with", "from", "you", "your", "are", "was",
+            "can", "please", "what", "when", "how", "about", "into", "send", "tell", "give", "have"
+        )
     }
 }

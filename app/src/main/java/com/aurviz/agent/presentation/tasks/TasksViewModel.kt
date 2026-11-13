@@ -3,6 +3,7 @@ package com.aurviz.agent.presentation.tasks
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aurviz.agent.domain.model.ScheduledTask
+import com.aurviz.agent.domain.model.TaskExecutionRecord
 import com.aurviz.agent.domain.repository.TaskSchedulerRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,13 @@ class TasksViewModel(
 
     val tasks: StateFlow<List<ScheduledTask>> = schedulerRepository.getAllTasks()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val history: StateFlow<List<TaskExecutionRecord>> = schedulerRepository.getExecutionHistory(100)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setTaskEnabled(id: String, enabled: Boolean) {
+        viewModelScope.launch { schedulerRepository.setTaskEnabled(id, enabled) }
+    }
 
     fun updateTask(task: ScheduledTask) {
         viewModelScope.launch { schedulerRepository.updateTask(task) }

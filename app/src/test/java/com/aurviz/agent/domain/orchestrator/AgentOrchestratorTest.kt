@@ -125,7 +125,8 @@ class AgentOrchestratorTest {
 
         val result = runner.executeAutonomousTask("Run the workflow")
 
-        assertTrue(result.startsWith("Success:"))
+        assertTrue(result is AutonomousTaskResult.Success)
+        assertEquals((result as AutonomousTaskResult.Success).summary, "Finished the workflow")
         assertEquals(1, firstTool.executions)
         assertEquals(1, secondTool.executions)
         assertEquals(3, client.callCount)
@@ -141,8 +142,43 @@ class AgentOrchestratorTest {
 
         val result = runner.executeAutonomousTask("Send an email")
 
-        assertTrue(result.startsWith("Task failed:"))
+        assertTrue(result is AutonomousTaskResult.Failure)
+        assertTrue((result as AutonomousTaskResult.Failure).message.contains("approval"))
         assertEquals(0, emailTool.executions)
+        assertEquals(MAX_AUTONOMOUS_STEPS, fakeGeminiClient.callCount)
+    }
+
+    @Test
+    fun scheduledTask_blockedSensitiveToolCanStillReturnDraftSummary() = runBlocking {
+        val emailTool = RecordingTool("send_email", sensitive = true)
+        val client = FakeGeminiClient().apply {
+            responses += GeminiAgentResponse.Success("", ToolExecutionRequest("send_email", emptyMap()))
+            responses += GeminiAgentResponse.Success("Draft ready for review: no email was sent.")
+        }
+        val runner = AgentOrchestrator(client, ToolRegistry(listOf(emailTool)), fakeMemoryRepo)
+
+        val result = runner.executeAutonomousTask("Draft a reply to the important email")
+
+        assertTrue(result is AutonomousTaskResult.Success)
+        assertEquals("Draft ready for review: no email was sent.", (result as AutonomousTaskResult.Success).summary)
+        assertEquals(0, emailTool.executions)
+        assertEquals(2, client.callCount)
+    }
+
+    @Test
+    fun scheduledTask_retryableGeminiFailureIsMarkedRetryable() = runBlocking {
+        fakeGeminiClient.nextResponse = GeminiAgentResponse.Error(
+            message = "Gemini rate limit exceeded (HTTP 429).",
+            kind = com.aurviz.agent.data.remote.GeminiErrorKind.RATE_LIMITED,
+            retryable = true
+        )
+        val runner = AgentOrchestrator(fakeGeminiClient, ToolRegistry(emptyList()), fakeMemoryRepo)
+
+        val result = runner.executeAutonomousTask("Summarize something")
+
+        assertTrue(result is AutonomousTaskResult.Failure)
+        assertTrue((result as AutonomousTaskResult.Failure).retryable)
+        assertTrue(result.message.contains("429"))
     }
 
     @Test

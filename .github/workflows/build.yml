@@ -40,3 +40,31 @@ jobs:
         name: aurviz-agent-debug-apk
         path: app/build/outputs/apk/debug/*.apk
         retention-days: 14
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: npm
+        cache-dependency-path: backend/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Generate Prisma client
+      run: npx prisma generate
+
+    - name: Run backend tests
+      run: npm test
+
+    - name: Audit dependencies
+      run: npm audit --omit=dev --audit-level=high

@@ -117,7 +117,11 @@ fun AppNavigation(
                 TasksScreen(viewModel = tasksViewModel)
             }
             composable(Screen.Settings.route) {
-                SettingsScreen(viewModel = settingsViewModel, onConnectGmail = onConnectGmail)
+                SettingsScreen(
+                    viewModel = settingsViewModel,
+                    onConnectGmail = onConnectGmail,
+                    onDisconnectGmail = settingsViewModel::disconnectGmail
+                )
             }
             composable(Screen.Browser.route) { entry ->
                 val initialUrl = entry.arguments?.getString("url").orEmpty()

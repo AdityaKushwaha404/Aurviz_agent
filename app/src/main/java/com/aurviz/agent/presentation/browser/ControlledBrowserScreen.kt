@@ -2,68 +2,51 @@ package com.aurviz.agent.presentation.browser
 
 import android.graphics.Bitmap
 import android.net.Uri
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import android.webkit.SslErrorHandler
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
-import android.view.ViewGroup
-import android.widget.FrameLayout
-import android.webkit.WebChromeClient
-import android.webkit.WebSettings
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.aurviz.agent.presentation.theme.*
 import com.aurviz.agent.service.web.BrowserAgentController
 import com.aurviz.agent.service.web.BrowserCommand
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
-import org.json.JSONTokener
 import org.json.JSONObject
+import org.json.JSONTokener
 import kotlin.coroutines.resume
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,14 +58,23 @@ fun ControlledBrowserScreen(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    var address by remember(initialUrl) { mutableStateOf(initialUrl) }
+    val startUrl = initialUrl.ifBlank { "https://www.google.com" }
+    var address by remember(startUrl) { mutableStateOf(startUrl) }
     var currentUrl by remember { mutableStateOf("") }
     var pageTitle by remember { mutableStateOf("Enter a public website address") }
     var pageError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var extractedText by remember { mutableStateOf("") }
+    var showExtractorPanel by remember { mutableStateOf(false) }
     var pageProgress by remember { mutableIntStateOf(0) }
     var webView by remember { mutableStateOf<WebView?>(null) }
+
+    val quickBookmarks = listOf(
+        "Google" to "https://www.google.com",
+        "Hacker News" to "https://news.ycombinator.com",
+        "Wikipedia" to "https://en.wikipedia.org",
+        "GitHub" to "https://github.com"
+    )
 
     fun loadAddress(raw: String) {
         val url = raw.trim().let { if (it.contains("://")) it else "https://$it" }
@@ -180,9 +172,9 @@ fun ControlledBrowserScreen(
         }
     }
     webView = browser
-    LaunchedEffect(initialUrl, browser, controller) {
+    LaunchedEffect(startUrl, browser, controller) {
         controller.setHostAvailable(true)
-        if (initialUrl.isNotBlank()) loadAddress(initialUrl)
+        loadAddress(startUrl)
         controller.commands.collect { command ->
             val result = runCatching {
                 runAgentBrowserCommand(browser, controller, command, ::loadAddress)
@@ -204,81 +196,196 @@ fun ControlledBrowserScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Browser", fontWeight = FontWeight.SemiBold)
-                        if (pageTitle.isNotBlank()) Text(pageTitle, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        Text("Controlled Agent Browser", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(pageTitle, style = MaterialTheme.typography.labelSmall, maxLines = 1, color = TextSecondary)
                     }
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to agent")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to agent", tint = PrimaryBlue)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { insets ->
-        Column(Modifier.fillMaxSize().padding(insets).padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(insets)
+        ) {
+            // Address & Search Pill
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                 OutlinedTextField(
                     value = address,
                     onValueChange = { address = it },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    label = { Text("Website") },
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                    keyboardActions = KeyboardActions(onGo = { loadAddress(address) })
-                )
-                IconButton(onClick = { loadAddress(address) }) {
-                    Icon(Icons.Default.Search, contentDescription = "Go to website")
-                }
-                IconButton(onClick = { webView?.reload() }, enabled = currentUrl.isNotBlank()) {
-                    Icon(Icons.Default.Refresh, contentDescription = "Reload page")
-                }
-            }
-            if (isLoading) {
-                androidx.compose.material3.LinearProgressIndicator(
-                    progress = { pageProgress / 100f },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            pageError?.let { Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(8.dp)) }
-
-            AndroidView(
-                factory = { browser },
-                modifier = Modifier.weight(1f).fillMaxWidth()
-            )
-
-            if (currentUrl.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Page text", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { webView?.goBack() }, enabled = browser.canGoBack()) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous page")
-                    }
-                    IconButton(onClick = { webView?.goForward() }, enabled = browser.canGoForward()) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next page")
-                    }
-                    Button(onClick = {
-                        webView?.evaluateJavascript("JSON.stringify(document.body ? document.body.innerText : '')") { encoded ->
-                            extractedText = runCatching { JSONTokener(encoded).nextValue() as? String ?: "" }
-                                .getOrDefault("").take(BrowserAgentController.PAGE_TEXT_LIMIT)
+                    shape = RoundedCornerShape(24.dp),
+                    leadingIcon = {
+                        Icon(Icons.Default.Lock, contentDescription = "HTTPS Secure", tint = SuccessGreen, modifier = Modifier.size(16.dp))
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { loadAddress(address) }) {
+                                Icon(Icons.Default.Search, contentDescription = "Go", tint = PrimaryBlue)
+                            }
+                            IconButton(onClick = { webView?.reload() }, enabled = currentUrl.isNotBlank()) {
+                                Icon(Icons.Default.Refresh, contentDescription = "Reload", tint = TextSecondary)
+                            }
                         }
-                    }) { Text("Extract") }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                    keyboardActions = KeyboardActions(onGo = { loadAddress(address) }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = PrimaryBlue,
+                        unfocusedBorderColor = SurfaceBorder
+                    )
+                )
+
+                // Quick Bookmark Chips
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 6.dp)
+                ) {
+                    items(quickBookmarks) { (label, url) ->
+                        Surface(
+                            color = PrimaryBlue.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.clickable { loadAddress(url) }
+                        ) {
+                            Text(
+                                label,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PrimaryBlue,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
-                if (extractedText.isNotBlank()) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp),
+            }
+
+            if (isLoading) {
+                LinearProgressIndicator(
+                    progress = { pageProgress / 100f },
+                    modifier = Modifier.fillMaxWidth(),
+                    color = PrimaryBlue
+                )
+            }
+
+            pageError?.let {
+                Surface(color = ErrorRed.copy(alpha = 0.1f), modifier = Modifier.fillMaxWidth()) {
+                    Text(it, color = ErrorRed, fontSize = 12.sp, modifier = Modifier.padding(8.dp))
+                }
+            }
+
+            // WebView Container
+            Box(modifier = Modifier.weight(1f)) {
+                AndroidView(
+                    factory = { browser },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            // Bottom Navigation & AI Extraction Toolbar
+            Surface(
+                color = SurfaceLight,
+                tonalElevation = 8.dp,
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Extracted page text", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
-                                IconButton(onClick = { clipboard.setText(AnnotatedString(extractedText)) }) {
-                                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy extracted text")
-                                }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(onClick = { webView?.goBack() }, enabled = browser.canGoBack()) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Previous page",
+                                    tint = if (browser.canGoBack()) PrimaryBlue else TextSecondary.copy(alpha = 0.4f)
+                                )
                             }
-                            Text(extractedText, style = MaterialTheme.typography.bodySmall, maxLines = 5)
+                            IconButton(onClick = { webView?.goForward() }, enabled = browser.canGoForward()) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Next page",
+                                    tint = if (browser.canGoForward()) PrimaryBlue else TextSecondary.copy(alpha = 0.4f)
+                                )
+                            }
+                        }
+
+                        // AI Extract Text Button
+                        Button(
+                            onClick = {
+                                webView?.evaluateJavascript("JSON.stringify(document.body ? document.body.innerText : '')") { encoded ->
+                                    extractedText = runCatching { JSONTokener(encoded).nextValue() as? String ?: "" }
+                                        .getOrDefault("").take(BrowserAgentController.PAGE_TEXT_LIMIT)
+                                    showExtractorPanel = true
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(18.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
+                            Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Extract Page Content", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Extracted Content Panel (Expandable)
+                    AnimatedVisibility(visible = showExtractorPanel && extractedText.isNotBlank()) {
+                        Surface(
+                            color = ToolBadgeBackground,
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                                .border(1.dp, SurfaceBorder, RoundedCornerShape(16.dp))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Description, contentDescription = null, tint = PrimaryBlue, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Extracted Page Text", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimary)
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = { clipboard.setText(AnnotatedString(extractedText)) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(Icons.Default.ContentCopy, contentDescription = "Copy text", tint = PrimaryBlue, modifier = Modifier.size(16.dp))
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        IconButton(
+                                            onClick = { showExtractorPanel = false },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Text(
+                                    extractedText,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    maxLines = 5,
+                                    lineHeight = 16.sp
+                                )
+                            }
                         }
                     }
                 }

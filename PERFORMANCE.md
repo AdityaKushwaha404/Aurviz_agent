@@ -1,17 +1,27 @@
 # Performance Analysis
 
-## Measurement status
+## Built-in measurement
 
-This repository does not currently contain measurements collected on a named device. Earlier latency, memory, token-reduction, and battery figures were not backed by reproducible traces and have been removed rather than presented as measurements.
+The app now measures itself. `PerformanceRecorder` writes one Room row per sample (newest 1000 kept), and **Settings → Performance** shows count, median, p95 and success rate per metric:
 
-| Metric | Status | Collection method |
-|---|---|---|
-| Agent response latency | Not measured | Record prompt submission and first/final response timestamps; report median and p95 over at least 30 runs. |
-| Tool execution latency | Not measured | Time each tool separately, including network time for web fetches. |
-| Memory use | Not measured | Capture Android Studio Profiler Java/native process memory at idle and during a representative task. |
-| Scheduled execution delay | Not measured | Compare requested due time with WorkManager start time across idle and Doze conditions. |
+| Metric | What is timed |
+|---|---|
+| Agent turn (end-to-end) | Prompt submitted → final answer or error shown. Includes Gemini and Gmail network time and any time spent waiting on a confirmation dialog. |
+| Gemini call | One `generateContent` round trip, including model fallback. |
+| Memory retrieval | Room lookup that builds the memory context for the prompt. |
+| Tool: `<name>` | One tool execution, e.g. `search_emails`, `read_email`, `open_url`. |
+| Scheduled task run | One background WorkManager run, start to persisted result. |
 
-Record device model, Android version, app build, model ID, network type, sample count, and raw results before claiming a performance result. WorkManager periodic intervals are not exact alarms.
+Percentiles use the nearest-rank method (`MetricMath`, unit-tested). The NFR target is under 3 s for simple commands, excluding external service delays. Compare "Agent turn" against "Gemini call": the difference is on-device overhead (memory retrieval, tool dispatch, persistence, UI).
+
+### How to produce a report
+
+1. Install a debug build on a named device, add the Gemini key, and connect Gmail.
+2. Settings → Performance → Reset.
+3. Run at least 30 simple prompts ("hi", "what do you remember about me?"), 10 email prompts ("summarize my important emails from today") and 2 or more task triggers.
+4. Record device model, Android version, network type, model ID and the table from Settings below.
+
+No result table is claimed here until that run is done on a device.
 
 ## Physical device capture — 2026-11-12
 
@@ -32,6 +42,12 @@ These are single diagnostic captures and should not be presented as a performanc
 ## Existing optimization
 
 The orchestrator limits conversational context to the last 12 user/assistant messages and requests up to six memory matches before falling back to recent memories. This is a bounded-context design choice, not a measured latency improvement. Chat history is file-backed, limited to 100 messages, and should be migrated to a versioned Room schema.
+
+## Resource efficiency choices
+
+- No foreground service or long-running background service. All deferred work uses WorkManager with a network constraint, so it never wakes the device just to fail offline.
+- Context is bounded: 12 prior messages, at most 8 memories, email bodies capped at 6,000 characters, search capped at 15 results, at most 8 interactive and 6 background model steps.
+- Room tables are bounded (performance 1000 rows, task history 500 rows, chat 100 messages).
 
 ## Next profiling opportunity
 

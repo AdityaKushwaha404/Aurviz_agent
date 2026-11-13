@@ -35,7 +35,9 @@ sealed class AgentMessage(
     data class ErrorMessage(
         override val id: String = java.util.UUID.randomUUID().toString(),
         override val timestamp: Long = System.currentTimeMillis(),
-        val error: String
+        val error: String,
+        /** The prompt that failed, when re-sending it may succeed (network/server errors). */
+        val retryPrompt: String? = null
     ) : AgentMessage(id, timestamp)
 }
 

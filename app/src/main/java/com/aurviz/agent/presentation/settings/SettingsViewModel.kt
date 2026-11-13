@@ -1,18 +1,43 @@
 package com.aurviz.agent.presentation.settings
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import com.aurviz.agent.core.security.SecurePreferences
-import com.aurviz.agent.data.remote.GmailAccessManager
+import com.aurviz.agent.data.remote.BackendAuthManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.stateIn
+import com.aurviz.agent.data.local.metrics.RoomPerformanceRecorder
+import com.aurviz.agent.domain.metrics.MetricSummary
 
 class SettingsViewModel(
     private val securePreferences: SecurePreferences,
-    gmailAccessManager: GmailAccessManager
+    private val backendAuthManager: BackendAuthManager,
+    private val performanceRecorder: RoomPerformanceRecorder? = null
 ) : ViewModel() {
 
-    val gmailConnectionState: StateFlow<String> = gmailAccessManager.connectionState
+    /** Measured on-device latency (median / p95) per metric, newest 1000 samples. */
+    val performance: StateFlow<List<MetricSummary>> =
+        (performanceRecorder?.summaries() ?: flowOf(emptyList()))
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun clearPerformanceSamples() {
+        viewModelScope.launch { performanceRecorder?.clear() }
+    }
+
+    val gmailConnectionState: StateFlow<String> = backendAuthManager.connectionState
+
+    init {
+        viewModelScope.launch { backendAuthManager.refreshConnectionState() }
+    }
+
+    fun disconnectGmail() {
+        viewModelScope.launch { backendAuthManager.disconnect() }
+    }
 
     private val _apiKey = MutableStateFlow(securePreferences.getGeminiApiKey())
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
