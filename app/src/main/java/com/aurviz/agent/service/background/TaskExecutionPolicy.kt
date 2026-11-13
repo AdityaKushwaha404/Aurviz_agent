@@ -79,7 +79,6 @@ data class TaskWorkSpec(
 /** Builds the scheduling configuration for recurring, one-time and manual runs. */
 object TaskSchedulingPolicy {
 
-    const val PERIODIC_INTERVAL_HOURS = 24L
     const val BACKOFF_SECONDS = 30L
 
     fun forScheduledTask(
@@ -88,8 +87,10 @@ object TaskSchedulingPolicy {
         isRecurring: Boolean
     ): TaskWorkSpec = TaskWorkSpec(
         uniqueWorkName = "task_$taskId",
-        isPeriodic = isRecurring,
-        repeatIntervalHours = PERIODIC_INTERVAL_HOURS,
+        // Recurring tasks are not periodic jobs: each run schedules the next occurrence from the
+        // task's cron expression, so weekday and day-of-week rules are possible.
+        isPeriodic = false,
+        repeatIntervalHours = 0L,
         initialDelayMillis = initialDelayMillis.coerceAtLeast(0L),
         requiresNetwork = true,
         backoffSeconds = BACKOFF_SECONDS

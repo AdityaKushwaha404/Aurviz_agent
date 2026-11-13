@@ -4,6 +4,7 @@ import com.aurviz.agent.core.util.TimeUtils
 import com.aurviz.agent.domain.model.ScheduledTask
 import com.aurviz.agent.domain.model.ToolExecutionResponse
 import com.aurviz.agent.domain.repository.TaskSchedulerRepository
+import com.aurviz.agent.domain.schedule.CronSchedule
 import com.aurviz.agent.domain.tool.AgentTool
 import java.util.UUID
 
@@ -12,22 +13,39 @@ class SchedulerTool(
 ) : AgentTool {
 
     override val name: String = "schedule_task"
-    override val description: String = "Schedule an autonomous recurring or delayed background task. " +
-            "You MUST intelligently formulate: " +
-            "1) 'title': A clean, professional, capitalized heading summarizing the task (e.g. 'Daily Morning Email Digest', 'Evening Project Summary', 'Hacker News Tech Briefing'). " +
-            "2) 'promptAction': A comprehensive, autonomous instruction describing exactly what the agent should do when triggered (e.g. 'Check unread emails, extract key highlights and pending action items, and compile an email summary'). " +
-            "3) 'timeExpression': Time string (e.g. '9:00 PM', '21:00', '9:00 AM'). " +
-            "4) 'isRecurring': boolean (true for recurring daily, false for one-time)."
+    override val description: String = "Schedule a background task that runs while the app is closed. " +
+            "Provide: 1) 'title' (a short capitalized name); " +
+            "2) 'promptAction' (a complete instruction for what the agent should do when it runs); " +
+            "3) 'timeExpression' (time of day such as '9:00 AM' or '21:00'); " +
+            "4) 'recurrence': 'daily', 'weekdays' (Monday to Friday), 'weekends', a list of days such as 'MON,WED,FRI' or 'Monday', " +
+            "'once' for a single run, or a 5-field cron expression such as '0 9 * * 1-5' (minute hour day-of-month month day-of-week)."
 
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
-        val timeExpression = arguments["timeExpression"] as? String ?: "9:00 AM"
         val rawPromptAction = arguments["promptAction"] as? String
             ?: return ToolExecutionResponse(name, false, "Missing 'promptAction' parameter.")
         val rawTitle = arguments["title"] as? String ?: ""
-        val isRecurring = (arguments["isRecurring"] as? Boolean) ?: true
+        val recurrence = (arguments["recurrence"] as? String)?.trim()
+        val onceWords = setOf("once", "one-time", "one time", "onetime", "today", "tomorrow")
+        val isRecurring = when {
+            recurrence != null && recurrence.lowercase() in onceWords -> false
+            recurrence != null && recurrence.isNotBlank() -> true
+            else -> (arguments["isRecurring"] as? Boolean) ?: true
+        }
 
-        val (hour, minute) = TimeUtils.tryParseHourAndMinute(timeExpression)
+        // A full cron expression carries its own time; otherwise combine the recurrence with the time of day.
+        val fullCron = recurrence?.takeIf { it.isNotBlank() }?.let { CronSchedule.parse(it) }
+        val (hour, minute) = fullCron?.fixedTime
+            ?: TimeUtils.tryParseHourAndMinute(arguments["timeExpression"] as? String ?: "9:00 AM")
             ?: return ToolExecutionResponse(name, false, "Please provide a valid time, such as 9:00 AM or 21:00.")
+
+        val schedule = when {
+            !isRecurring -> CronSchedule.fromRecurrence("daily", hour, minute)
+            fullCron != null -> fullCron
+            else -> CronSchedule.fromRecurrence(recurrence, hour, minute)
+        } ?: return ToolExecutionResponse(
+            name, false,
+            "I could not understand the repeat pattern '$recurrence'. Use daily, weekdays, weekends, day names like MON,WED,FRI, or a cron expression."
+        )
 
         val cleanTitle = synthesizeTitle(rawTitle, rawPromptAction, hour)
         val cleanAction = synthesizeAction(rawPromptAction)
@@ -35,7 +53,7 @@ class SchedulerTool(
         val task = ScheduledTask(
             id = UUID.randomUUID().toString(),
             title = cleanTitle,
-            cronExpression = "daily_at_${String.format("%02d:%02d", hour, minute)}",
+            cronExpression = schedule.expression,
             promptAction = cleanAction,
             isRecurring = isRecurring,
             hourOfDay = hour,
@@ -44,10 +62,11 @@ class SchedulerTool(
 
         taskSchedulerRepository.scheduleTask(task)
 
+        val when_ = if (isRecurring) schedule.describe() else "once at ${String.format("%02d:%02d", hour, minute)}"
         return ToolExecutionResponse(
             toolName = name,
             isSuccess = true,
-            output = "Scheduled task successfully registered: '$cleanTitle' to execute ${if (isRecurring) "daily" else "once"} at ${String.format("%02d:%02d", hour, minute)}."
+            output = "Scheduled task successfully registered: '$cleanTitle' (${when_})."
         )
     }
 

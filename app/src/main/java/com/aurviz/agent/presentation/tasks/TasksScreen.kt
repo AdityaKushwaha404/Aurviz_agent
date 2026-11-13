@@ -328,7 +328,10 @@ fun ScheduledTaskCard(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = if (task.isRecurring) "Daily at ${String.format("%02d:%02d", task.hourOfDay, task.minute)}" else "One-time Execution",
+                            text = if (task.isRecurring) {
+                                com.aurviz.agent.domain.schedule.CronSchedule.parse(task.cronExpression)?.describe()
+                                    ?: "Daily at ${String.format("%02d:%02d", task.hourOfDay, task.minute)}"
+                            } else "One-time Execution",
                             color = SecondaryTeal,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp

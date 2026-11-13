@@ -74,7 +74,7 @@ Type each prompt, or tap the microphone and say it.
 | 3 | "Remember that I prefer formal emails" | A memory card; the Memory tab lists it | FR-05 |
 | 4 | "Draft an email to meera.rao@university.example asking about my grade, but don't send it" | A formal draft is saved; nothing is sent. Open the **Drafts** tab to see it | FR-06, 16 |
 | 5 | "Send an email to rahul@example.com saying I will be late" | An **approval dialog** with editable To, Subject and Body. Cancel sends nothing. Approve and it appears in **Sent** (the test account accepts only its own address and example.com addresses; the demo mailbox accepts any) | FR-08 |
-| 6 | "Every morning at 9 AM, check my important emails and summarize them" | Task created. Open **Tasks**, tap **Run now**; **History** shows the run | FR-10, 11, 13 |
+| 6 | "Every weekday at 9 AM, check my important emails and summarize them" (also try "every Monday and Thursday at 6 PM") | Task created and shown in words, for example **Weekdays at 09:00**, with its next run time. Open **Tasks**, tap **Run now**; **History** shows the run | FR-10, 11, 13 |
 | 7 | "Forget my email tone preference" | Memory deleted | FR-07 |
 | 8 | "Open news.ycombinator.com and tell me the top 3 stories" | The in-app browser opens and the stories are listed | FR-09 |
 | 9 | In the browser open a Wikipedia article and tap **Summarize** | Back in chat with a summary of that page | FR-22 |

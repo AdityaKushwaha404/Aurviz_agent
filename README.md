@@ -9,7 +9,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android%208%2B-3DDC84?logo=android&logoColor=white">
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white">
   <img alt="AI" src="https://img.shields.io/badge/AI-Gemini%20function%20calling-4285F4?logo=google&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-86%20Android%20%2B%2018%20backend%20passing-brightgreen">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-99%20Android%20%2B%2018%20backend%20passing-brightgreen">
 </p>
 
 Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instructions, remembers your preferences, plans multi-step work, **uses tools** (email, memory, scheduler, web browser) and **executes tasks**, including scheduled ones that run while the app is closed.
@@ -24,7 +24,7 @@ Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instr
 | **Email** | Search, read and summarize mail; save drafts; send only after you approve To, Subject and Body in an editable dialog. A built-in **mailbox viewer** shows Inbox, Sent and Drafts and updates live |
 | **Three mailboxes** | **Test Gmail account** (credentials and steps shown in the app), **your own Gmail** (Google sign-in), or the offline **Demo mailbox** (sample data you can view and reset) |
 | **Remember** | Saves preferences ("I prefer formal emails") and applies them to later answers. View, edit and delete memories |
-| **Schedule** | "Every morning at 9, summarize my inbox" runs in the background with retries, pause and resume, notifications and a full history |
+| **Schedule** | Cron-like rules in plain words: "every morning at 9", "every weekday at 8", "Mondays and Thursdays at 6 PM", or a cron expression like `0 9 * * 1-5`. Runs in the background with retries, pause and resume, notifications and a full history |
 | **Browse** | A real in-app browser: address bar that searches, find in page, reader view, desktop site, bookmarks and history, share, plus AI actions (Summarize, Key facts, Explain, Ask) on the open page. The agent can drive it too ([details](docs/BROWSER.md)) |
 | **Stay safe** | OAuth (no passwords), encrypted tokens, approval before any send, background runs can never send |
 | **Explain failures** | Plain-language errors with a next step and a Try again button |
@@ -73,7 +73,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 Run the tests:
 ```sh
-./gradlew app:testDebugUnitTest     # 86 Android tests
+./gradlew app:testDebugUnitTest     # 99 Android tests
 cd backend && npm ci && npm test    # 18 backend tests
 ```
 

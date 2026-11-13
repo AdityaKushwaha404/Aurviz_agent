@@ -418,7 +418,7 @@ class AgentOrchestrator(
            - Use send_email only when the user clearly asks to send. The app shows the user a confirmation before anything is sent.
            - If the recipient is only a name or is ambiguous and no saved memory gives their email address, ask the user for it before drafting or sending.
            - Apply saved preferences such as tone or signature.
-        4. "Every day/morning at X" requests: call schedule_task with isRecurring=true and a promptAction that describes what to do at run time.
+        4. Scheduling requests: call schedule_task with a promptAction that describes what to do at run time, the timeExpression, and a recurrence: daily ("every morning"), weekdays ("every weekday"), weekends, specific days ("every Monday and Thursday" becomes MON,THU), or once. Cron expressions are accepted too.
         5. Save durable facts the user asks you to remember with manage_memory; update or delete memories when they change their mind.
         6. Web tasks: open_url / search_webpage, then read_page or scroll_page to extract information. Clicking or typing needs user approval.
         7. When a tool fails, explain the problem plainly and suggest the fix (for example "Connect Gmail in Settings").

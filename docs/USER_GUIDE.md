@@ -8,7 +8,10 @@ Examples:
 - "Summarize my unread emails from today"
 - "Draft a reply to the interview invitation, but don't send it"
 - "Remember that my manager is Alex and her email is alex@company.com"
-- "Every weekday morning at 8, summarize my inbox" (daily recurrence; weekday-only rules are not supported)
+- "Every weekday morning at 8, summarize my inbox" (weekdays)
+- "Every Monday and Thursday at 6 PM, check my emails" (specific days)
+- "Weekends at 10 AM, summarize my newsletters"
+- Advanced: a cron expression such as `0 9 * * 1-5` (minute hour day-of-month month day-of-week)
 - "Open the BBC News website and tell me the top story"
 
 ## Mailboxes
@@ -32,7 +35,7 @@ Aurviz remembers facts and preferences and uses them in later answers. The **Mem
 ## Tasks
 The **Tasks** tab lists routines. For each task you can **Run now**, **pause or resume** (daily tasks), **edit** or **delete**. The **History** tab keeps every run with the time taken. Tap a task's "View last result" to read what happened. If something failed you get a plain explanation and what to do next, with technical details one tap away.
 
-Android may start a scheduled task a few minutes late to save battery.
+Repeats can be daily, weekdays, weekends, specific days or a cron expression; the card shows it in words (for example "Weekdays at 09:00") and the next run time. Android may start a scheduled task a few minutes late to save battery.
 
 ## Browser
 Tap the globe in the chat header.

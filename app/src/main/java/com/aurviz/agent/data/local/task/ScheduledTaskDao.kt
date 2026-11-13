@@ -26,4 +26,7 @@ interface ScheduledTaskDao {
 
     @Query("UPDATE scheduled_tasks SET isEnabled = :enabled WHERE id = :id")
     suspend fun updateTaskEnabled(id: String, enabled: Boolean)
+
+    @Query("UPDATE scheduled_tasks SET nextRunEpoch = :next WHERE id = :id")
+    suspend fun updateNextRun(id: String, next: Long)
 }

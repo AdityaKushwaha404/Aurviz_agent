@@ -125,6 +125,12 @@ class ScheduledTaskWorker(
             outcome is AutonomousTaskResult.Success
         )
 
+        // A finished (not retrying) scheduled run queues the next occurrence from the cron expression.
+        // Manual "Run now" runs never move the schedule.
+        if (disposition != WorkDisposition.RETRY && isRecurring && !inputData.getBoolean(KEY_MANUAL, false)) {
+            runCatching { schedulerRepo.scheduleNextRun(taskId) }
+        }
+
         return when (disposition) {
             WorkDisposition.SUCCESS -> {
                 showNotification(taskTitle, TaskExecutionPolicy.notificationMessage(outcome))

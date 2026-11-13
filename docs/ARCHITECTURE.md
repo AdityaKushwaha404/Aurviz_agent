@@ -190,9 +190,17 @@ sequenceDiagram
     K-->>U: notification
 ```
 
+<table>
+<tr>
+<td align="center"><img src="screenshots/41-weekday-task-card.png" width="230"><br><sub>A weekday task after it ran at 17:14: next run is Monday</sub></td>
+</tr>
+</table>
+
 Reliability rules:
 
-- Recurrence is expressed in natural language ("every morning at 9", "at 6 PM") and converted by the model into a time and a daily or one-time flag; cron syntax itself is not parsed. Weekday-specific rules (for example "every Monday") are not supported.
+- **Cron-like scheduling.** The model turns a sentence into a `recurrence` and a time: `daily`, `weekdays`, `weekends`, day names (`MON,THU`), `once`, or a full 5-field cron expression (`0 9 * * 1-5`). `CronSchedule` (pure Kotlin) parses the expression, supports `*`, lists, ranges, steps and `JAN-DEC` / `SUN-SAT` names, and computes the next run time (classic cron rule: if day-of-month and day-of-week are both set, either may match). The expression is stored with the task and shown as plain words, for example "Weekdays at 09:00".
+- **A chain of exact one-time jobs, not a 24-hour periodic job.** A periodic WorkManager job can only repeat at a fixed interval, so it cannot express "weekdays". Instead each recurring task keeps one delayed one-time job. When a run finishes (not retrying), the worker computes the next occurrence from the cron expression and queues it (`APPEND_OR_REPLACE`, so it never cancels itself). At app start `ensureScheduled()` re-queues any task whose chain is missing and migrates tasks created by older builds (`daily_at_HH:MM`). Manual "Run now" never moves the schedule, and a paused task does not queue a next run.
+- Android may still start a job a few minutes late under battery optimization, and a run missed while the phone was off is not replayed; the next occurrence is scheduled instead.
 - Unique work names (`task_<id>`, `task_<id>_manual`) stop duplicate enqueues; an in-process guard drops a concurrent second run.
 - A run is **never reported as success** if a required tool failed. Transient failures (offline, rate limit, tool outage) are retried with exponential backoff up to 3 attempts and shown as "Retrying".
 - Pause cancels the WorkManager job but keeps the task; resume re-registers it. A run that was already in flight never silently resumes a paused task.

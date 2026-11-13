@@ -9,13 +9,13 @@
 
 | Area | Result |
 |---|---|
-| Android unit tests | **86 of 86 pass** |
+| Android unit tests | **99 of 99 pass** |
 | Backend tests | **18 of 18 pass** (Node 22) |
 | Device checks | **All listed in section 3 pass** |
 | Build | `assembleDebug` succeeds; CI runs tests and the build on every push |
 | Dependency audit | `npm audit` reports no known vulnerabilities |
 
-Not verified on the device (stated openly): in the browser, the find-in-page match counter, desktop-site toggle, text-size and share actions (the menu entries are shown but typing into the find field could not be driven over adb); speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); the real 09:00 trigger firing unattended overnight; and the relaxed recipient rule (example.com addresses) on the deployed server, which needs the latest backend version deployed; its logic is unit-tested.
+Not verified on the device (stated openly): in the browser, the find-in-page match counter, desktop-site toggle, text-size and share actions (the menu entries are shown but typing into the find field could not be driven over adb); speech input in the latest build; offline Retry behaviour (unit-tested only, because switching Wi-Fi off would disconnect the wireless debugging link); an overnight run with the screen off for hours (a scheduled run was verified firing on time with the phone awake and charging); and the relaxed recipient rule (example.com addresses) on the deployed server, which needs the latest backend version deployed; its logic is unit-tested.
 
 ## 2. Automated tests
 
@@ -37,9 +37,10 @@ Not verified on the device (stated openly): in the browser, the find-in-page mat
 | `GmailInboxToolsTest` | 3 | Result formatting, no invented data, transient versus permanent error classification |
 | `ControlledWebScraperTest` | 3 | Public-page extraction and private-address blocking |
 | `MarkdownParserTest` | 3 | Bold, italic, code, lists, malformed markers |
-| `SchedulerToolTest` | 2 | The model's instruction is stored unchanged; invalid time rejected |
+| `SchedulerToolTest` | 5 | The model's instruction is stored unchanged; invalid time rejected; weekday, specific-day, cron and one-time recurrences; bad patterns rejected |
+| `CronScheduleTest` | 10 | Cron parsing (lists, ranges, steps, names, Sunday as 0 or 7), next-run calculation (today vs tomorrow, weekends skipped, month and day-of-month rules, classic day-of-month OR day-of-week), invalid input rejected, legacy daily format, friendly recurrence words, changing the clock while keeping the days |
 | `MetricMathTest` | 2 | Percentiles and summary statistics |
-| **Total** | **86** | |
+| **Total** | **99** | |
 
 ### 2.2 Backend (`npm test`)
 
@@ -84,6 +85,8 @@ Tested on the physical device against the deployed backend.
 | D28 | NFR-10 | Simulated small phone (360 x 640 dp): onboarding, chat, Settings, Tasks, browser | No clipped or unreachable content; the onboarding mailbox page scrolls so every button is reachable | Pass |
 | D29 | NFR-10 | Accessibility font scale 1.6 on the small screen | After fixes: title stays on one line, bottom tab labels do not break, the message hint truncates cleanly | Pass |
 | D30 | NFR-10 | Simulated tablet width (600 x 960 dp) | Content stays centered at a readable width (max 640 dp) instead of stretching edge to edge | Pass |
+| D31 | FR-10, FR-11 | "Every weekday at 5:14 PM, check my important emails and summarize them" | Task card "Weekdays at 17:14"; it runs at 17:14 by itself through WorkManager (11.5 s); History shows Success; the next run is **Monday 16 Nov 17:14**, skipping the weekend | Pass |
+| D32 | FR-10 | Existing daily task created by an earlier build | Still shows "Daily at 09:00" with the next run time after the upgrade (migrated to the cron chain) | Pass |
 | D17 | NFR-01 | 30 simple prompts | Median 1.6 s, on-device overhead about 0.1 s | Pass |
 | D18 | FR-27, 28 | Open the mailbox viewer in demo mode | Inbox with unread in bold; tabs for Sent and Drafts | Pass |
 | D19 | FR-27 | Ask Aurviz to draft an email, then to send one, then open the Drafts and Sent tabs | The Drafts and Sent tabs show the new messages | Pass |
@@ -121,7 +124,7 @@ Tested on the physical device against the deployed backend.
 | FR-07 Memory edit/delete | `MemoryToolTest` | D8 |
 | FR-08 Send after confirmation | `AgentOrchestratorTest` | D5 |
 | FR-09 Web automation | `ControlledWebScraperTest`, `BrowserUrlTest` | D10 |
-| FR-10 Scheduling | `SchedulerToolTest`, `TimeUtilsTest` | D9 |
+| FR-10 Scheduling | `CronScheduleTest`, `SchedulerToolTest`, `TimeUtilsTest` | D9, D31, D32 |
 | FR-11 Background execution | `TaskExecutionPolicyTest` | D9 (Run now through WorkManager) |
 | FR-12 Multi-step | `AgentReliabilityTest` | D3, D11 |
 | FR-13 Task history | n/a | D9 |
@@ -148,7 +151,7 @@ Tested on the physical device against the deployed backend.
 ## 5. How to reproduce
 
 ```sh
-./gradlew app:testDebugUnitTest        # 86 Android tests
+./gradlew app:testDebugUnitTest        # 99 Android tests
 ./gradlew app:assembleDebug            # build the APK
 cd backend && npm ci && npm test       # 18 backend tests
 ```

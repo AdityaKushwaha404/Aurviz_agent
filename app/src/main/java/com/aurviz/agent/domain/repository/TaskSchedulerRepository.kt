@@ -18,6 +18,15 @@ interface TaskSchedulerRepository {
         completed: Boolean = true
     )
 
+    /**
+     * Enqueues the next run of a recurring task from its cron expression. Called after each run
+     * and once at app start (see [ensureScheduled]).
+     */
+    suspend fun scheduleNextRun(id: String)
+
+    /** Re-registers WorkManager jobs for enabled recurring tasks (and migrates legacy periodic jobs). */
+    suspend fun ensureScheduled()
+
     /** Pauses (cancels pending work, keeps the definition) or resumes a task. */
     suspend fun setTaskEnabled(id: String, enabled: Boolean)
 

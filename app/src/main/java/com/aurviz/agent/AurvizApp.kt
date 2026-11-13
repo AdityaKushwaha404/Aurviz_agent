@@ -123,6 +123,11 @@ class AurvizApp : Application() {
         // 5. Initialize Voice Manager
         voiceManager = VoiceManager(this)
 
+        // 5b. Make sure every enabled recurring task has its next run queued (also migrates old periodic jobs).
+        kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { taskSchedulerRepository.ensureScheduled() }
+        }
+
         // 6. Setup Notification Channels
         createNotificationChannels()
     }

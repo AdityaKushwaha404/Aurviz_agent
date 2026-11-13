@@ -23,15 +23,16 @@ class TaskExecutionPolicyTest {
     }
 
     @Test
-    fun periodicSuccess_keepsPeriodicScheduleConfigured() {
+    fun recurringSuccess_keepsTheScheduleAliveAsAnExactDelayedRun() {
         val outcome = AutonomousTaskResult.Success("Evening summary ready")
 
         val disposition = TaskExecutionPolicy.dispositionFor(outcome, isRecurring = true, runAttemptCount = 0)
         val spec = TaskSchedulingPolicy.forScheduledTask("task-1", 60_000L, isRecurring = true)
 
         assertEquals(WorkDisposition.SUCCESS, disposition)
-        assertTrue(spec.isPeriodic)
-        assertEquals(24L, spec.repeatIntervalHours)
+        // Recurring tasks are cron-driven chains of delayed one-time work, not 24-hour periodic jobs.
+        assertFalse(spec.isPeriodic)
+        assertEquals(60_000L, spec.initialDelayMillis)
         assertEquals("task_task-1", spec.uniqueWorkName)
         assertTrue(spec.requiresNetwork)
     }

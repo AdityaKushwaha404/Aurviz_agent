@@ -3,11 +3,9 @@ package com.aurviz.agent.data.repository
 import android.content.Context
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.aurviz.agent.core.util.TimeUtils
@@ -16,12 +14,14 @@ import com.aurviz.agent.data.local.history.TaskExecutionEntity
 import com.aurviz.agent.data.local.task.ScheduledTaskDao
 import com.aurviz.agent.data.local.task.ScheduledTaskEntity
 import com.aurviz.agent.domain.model.ScheduledTask
+import com.aurviz.agent.domain.schedule.CronSchedule
 import com.aurviz.agent.domain.model.TaskExecutionRecord
 import com.aurviz.agent.domain.repository.TaskSchedulerRepository
 import com.aurviz.agent.service.background.ScheduledTaskWorker
 import com.aurviz.agent.service.background.TaskSchedulingPolicy
 import com.aurviz.agent.service.background.TaskWorkSpec
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
@@ -44,57 +44,69 @@ class TaskSchedulerRepositoryImpl(
     }
 
     override suspend fun scheduleTask(task: ScheduledTask) {
-        val initialDelay = TimeUtils.calculateInitialDelayForTime(task.hourOfDay, task.minute)
-        val nextRunEpoch = System.currentTimeMillis() + initialDelay
+        val now = System.currentTimeMillis()
+        // A task is stored with a cron expression; fall back to a daily run at its clock time.
+        val schedule = CronSchedule.parse(task.cronExpression)
+            ?: CronSchedule.fromRecurrence("daily", task.hourOfDay, task.minute)!!
+        val nextRunEpoch = schedule.nextAfter(now)
+            ?: (now + TimeUtils.calculateInitialDelayForTime(task.hourOfDay, task.minute))
 
-        val updatedTask = task.copy(nextRunEpoch = nextRunEpoch, isEnabled = true)
-        taskDao.insertTask(ScheduledTaskEntity.fromDomain(updatedTask))
+        val stored = task.copy(cronExpression = schedule.expression, nextRunEpoch = nextRunEpoch, isEnabled = true)
+        taskDao.insertTask(ScheduledTaskEntity.fromDomain(stored))
+        enqueueRun(stored, nextRunEpoch - now, ExistingWorkPolicy.REPLACE)
+    }
 
+    override suspend fun scheduleNextRun(id: String) {
+        val task = taskDao.getTaskById(id)?.toDomain() ?: return
+        if (!task.isRecurring || !task.isEnabled) return
+        val now = System.currentTimeMillis()
+        val next = CronSchedule.parse(task.cronExpression)?.nextAfter(now) ?: return
+        taskDao.updateNextRun(id, next)
+        // APPEND_OR_REPLACE queues behind the run that is calling this, instead of cancelling it.
+        enqueueRun(task, next - now, ExistingWorkPolicy.APPEND_OR_REPLACE)
+    }
+
+    override suspend fun ensureScheduled() {
+        val tasks = taskDao.getAllTasks().first().map { it.toDomain() }
+        for (task in tasks.filter { it.isRecurring && it.isEnabled }) {
+            val schedule = CronSchedule.parse(task.cronExpression) ?: continue
+            val now = System.currentTimeMillis()
+            val next = schedule.nextAfter(now) ?: continue
+            if (task.cronExpression.startsWith("daily_at_")) {
+                // Older builds used a 24-hour periodic job: replace it with the cron-driven chain.
+                scheduleTask(task.copy(cronExpression = schedule.expression))
+            } else {
+                taskDao.updateNextRun(task.id, next)
+                enqueueRun(task, next - now, ExistingWorkPolicy.KEEP)
+            }
+        }
+    }
+
+    private fun enqueueRun(task: ScheduledTask, delayMillis: Long, policy: ExistingWorkPolicy) {
         val spec = TaskSchedulingPolicy.forScheduledTask(
             taskId = task.id,
-            initialDelayMillis = initialDelay,
+            initialDelayMillis = delayMillis,
             isRecurring = task.isRecurring
         )
-        val inputData = inputDataFor(task)
-
-        if (spec.isPeriodic) {
-            val workRequest = PeriodicWorkRequestBuilder<ScheduledTaskWorker>(
-                spec.repeatIntervalHours,
-                TimeUnit.HOURS
-            )
-                .setInitialDelay(spec.initialDelayMillis, TimeUnit.MILLISECONDS)
-                .setInputData(inputData)
-                .setConstraints(constraintsFor(spec))
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, spec.backoffSeconds, TimeUnit.SECONDS)
-                .addTag("task_${task.id}")
-                .build()
-
-            workManager.enqueueUniquePeriodicWork(
-                spec.uniqueWorkName,
-                ExistingPeriodicWorkPolicy.UPDATE,
-                workRequest
-            )
-        } else {
-            val workRequest = OneTimeWorkRequestBuilder<ScheduledTaskWorker>()
-                .setInitialDelay(spec.initialDelayMillis, TimeUnit.MILLISECONDS)
-                .setInputData(inputData)
-                .setConstraints(constraintsFor(spec))
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, spec.backoffSeconds, TimeUnit.SECONDS)
-                .addTag("task_${task.id}")
-                .build()
-
-            workManager.enqueueUniqueWork(
-                spec.uniqueWorkName,
-                ExistingWorkPolicy.REPLACE,
-                workRequest
-            )
-        }
+        val request = OneTimeWorkRequestBuilder<ScheduledTaskWorker>()
+            .setInitialDelay(spec.initialDelayMillis, TimeUnit.MILLISECONDS)
+            .setInputData(inputDataFor(task))
+            .setConstraints(constraintsFor(spec))
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, spec.backoffSeconds, TimeUnit.SECONDS)
+            .addTag("task_${task.id}")
+            .build()
+        workManager.enqueueUniqueWork(spec.uniqueWorkName, policy, request)
     }
 
     override suspend fun updateTask(task: ScheduledTask) {
         workManager.cancelUniqueWork(TaskSchedulingPolicy.forScheduledTask(task.id, 0L, task.isRecurring).uniqueWorkName)
         workManager.cancelUniqueWork(TaskSchedulingPolicy.forManualTrigger(task.id).uniqueWorkName)
-        scheduleTask(task)
+        // Editing the clock time keeps the day rule (weekdays, Mondays, ...) and changes only the time.
+        val schedule = CronSchedule.parse(task.cronExpression)
+        val moved = if (schedule?.fixedTime != null && schedule.fixedTime != (task.hourOfDay to task.minute)) {
+            schedule.withTime(task.hourOfDay, task.minute)
+        } else schedule
+        scheduleTask(task.copy(cronExpression = moved?.expression ?: task.cronExpression))
     }
 
     override suspend fun cancelTask(id: String) {
@@ -177,7 +189,8 @@ class TaskSchedulerRepositoryImpl(
     ) {
         val task = taskDao.getTaskById(id) ?: return
         val nextRunEpoch = if (task.isRecurring) {
-            lastExecutionEpoch + TimeUnit.DAYS.toMillis(1)
+            CronSchedule.parse(task.cronExpression)?.nextAfter(lastExecutionEpoch)
+                ?: (lastExecutionEpoch + TimeUnit.DAYS.toMillis(1))
         } else {
             task.nextRunEpoch
         }

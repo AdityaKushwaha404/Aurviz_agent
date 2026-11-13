@@ -45,6 +45,7 @@ Measured by the app's recorder on the same device. A scheduled run is a full bac
 | Email summary, real Gmail via the backend (run 1) | 9.9 s | Search, read, summarize |
 | Email summary, real Gmail via the backend (run 2) | 21.3 s | More messages read, more model steps |
 | Email summary, demo mailbox | 6.9 s | Local mail tools, no network hop to Gmail |
+| Weekday task fired by the scheduler at 17:14 (demo mailbox) | 11.5 s | Started on the minute; shows scheduling accuracy on a charging, awake phone |
 
 Task latency is dominated by the number of model round trips (about 1.5 s each) plus Gmail calls; it is a background job, so the user never waits on it. WorkManager's scheduling delay (how late Android starts a run) depends on battery state and was not benchmarked.
 
