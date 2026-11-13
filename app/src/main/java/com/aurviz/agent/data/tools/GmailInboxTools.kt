@@ -38,7 +38,7 @@ class GmailSearchTool(private val mail: MailService) : AgentTool {
     override val name = "search_emails"
     override val description =
         "Search the connected Gmail inbox using Gmail query syntax (e.g. 'is:important newer_than:1d', " +
-            "'subject:interview'). Returns sender, subject, date, snippet and message id."
+            "'subject:interview'). Use in:drafts or in:sent to look at those folders. Returns sender, subject, date, snippet and message id."
 
     override suspend fun execute(arguments: Map<String, Any?>): ToolExecutionResponse {
         if (!mail.isConnected()) return notConnected(name)

@@ -1,41 +1,99 @@
-# Aurviz — Personal AI Agent for Android
+<p align="center">
+  <img src="docs/assets/logo.png" alt="Aurviz logo" width="132"/>
+</p>
 
-Aurviz is a Kotlin/Compose personal agent for voice and text commands, persistent memory, scheduled workflows, Gmail send, and controlled web browsing.
+<h1 align="center">Aurviz</h1>
+<p align="center"><b>A personal AI agent for Android that understands, remembers, plans and acts.</b></p>
 
-## What it does
+<p align="center">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Android%208%2B-3DDC84?logo=android&logoColor=white">
+  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white">
+  <img alt="AI" src="https://img.shields.io/badge/AI-Gemini%20function%20calling-4285F4?logo=google&logoColor=white">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-83%20Android%20%2B%2014%20backend%20passing-brightgreen">
+</p>
 
-- **Voice and text commands** feed one bounded agent loop. Gemini plans and picks tools; Kotlin tools execute; WorkManager schedules.
-- **Gmail** (OAuth via the Aurviz backend, no passwords): search and read the inbox, summarize, save drafts, and send only after an editable in-app confirmation.
-- **Personal memory** in Room: save, recall, edit and delete from the Memory screen or by voice. Saved preferences (e.g. "formal emails") are applied automatically.
-- **Scheduled tasks:** one-time or daily background workflows (e.g. "every morning at 9 AM summarize my important emails"), with pause/resume, run-now, retries with backoff, notifications and a full execution history.
-- **Web automation** in a controlled WebView: open, search, read, scroll and navigate; clicks and typing need approval.
-- **Reliability and measurement:** real error messages with Retry, offline-aware background runs, and on-device latency stats (median/p95) in Settings.
+Aurviz is more than a voice-enabled chatbot. It listens to spoken or typed instructions, remembers your preferences, plans multi-step work, **uses tools** (email, memory, scheduler, web browser) and **executes tasks**, including scheduled ones that run while the app is closed.
 
-See [SUBMISSION.md](SUBMISSION.md) for the FR/NFR traceability matrix and a manual demo script.
+> **Evaluating this project?** You need no credentials. Install the APK, choose **Start with the demo mailbox**, and follow the ten-minute script in the **[Evaluator Guide](docs/EVALUATOR_GUIDE.md)**.
 
-## Backend
+## What it can do
 
-The Node.js/Express + PostgreSQL/Prisma backend ([backend/README.md](backend/README.md)) owns Google OAuth. It encrypts refresh tokens, exchanges Android session tokens, and serves Gmail send/search/read/draft, scheduled one-shot emails and persistent pg-boss jobs. Android calls it at `API_BASE_URL` (see `app/build.gradle.kts`). Never put the Web client secret or refresh tokens in Android or source control.
+| | |
+|---|---|
+| **Understand** | Voice and text commands. Gemini decides which tool to use and breaks complex requests into steps |
+| **Email** | Search, read and summarize Gmail; save drafts; send only after you approve To, Subject and Body in an editable dialog |
+| **Remember** | Saves preferences ("I prefer formal emails") and applies them to later answers. View, edit and delete memories |
+| **Schedule** | "Every morning at 9, summarize my inbox" runs in the background with retries, pause and resume, notifications and a full history |
+| **Browse** | A controlled in-app browser with search, find in page, reader view, bookmarks, and AI actions that summarize or answer questions about the open page |
+| **Stay safe** | OAuth (no passwords), encrypted tokens, approval before any send, background runs can never send |
+| **Explain failures** | Plain-language errors with a next step and a Try again button |
 
-## Architecture
+## How it works
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for component boundaries, data flow, browser safety, and delivery semantics. See [SUBMISSION.md](SUBMISSION.md) for an honest status checklist and remaining validation.
-
-## Android setup
-
-Requirements: Android Studio, JDK 17, Android SDK 34, and Android device/emulator API 26+. Add a Gemini API key in Settings. For Gmail, enable the Gmail API, add the `gmail.send`, `gmail.readonly` and `gmail.compose` scopes and your test users on the OAuth consent screen, and configure the backend Web OAuth client (see backend README). Then tap Settings → Connect Gmail. The app stores the Gemini key in AndroidX encrypted preferences; distributed APK keys are still extractable and should be proxied for production.
-
-Build and test:
-
-```sh
-./gradlew app:assembleDebug
-./gradlew app:testDebugUnitTest
+```mermaid
+flowchart LR
+    U([You]) -- voice / text --> A[Agent loop]
+    A -- reasoning --> G[(Gemini)]
+    A -- executes --> T[Tools: email, memory, scheduler, browser]
+    T --> M{Mail}
+    M -- real account --> B[Backend + Gmail API]
+    M -- demo --> D[Sample mailbox]
+    S[WorkManager] -- wakes later --> A
 ```
 
-## Backend setup
+Three concerns, kept separate: **Gemini reasons**, **Kotlin tools execute**, **WorkManager schedules**. Read the [Architecture](docs/ARCHITECTURE.md) for diagrams and design decisions.
 
-See [backend/README.md](backend/README.md). In short: copy `backend/.env.example` to a private `backend/.env`, set the replacement Google Web OAuth credentials and generated secrets, start PostgreSQL, run npm install, Prisma generate/migrate, then start the API/worker. A physical phone needs a reachable HTTPS backend; its localhost is not your development computer.
+## Quick start
+
+```sh
+git clone https://github.com/AdityaKushwaha404/Aurviz_agent.git
+cd Aurviz_agent
+echo "gemini.api.key=YOUR_GEMINI_KEY" >> local.properties   # optional, bundles a key into the APK
+./gradlew app:assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Run the tests:
+```sh
+./gradlew app:testDebugUnitTest     # 83 Android tests
+cd backend && npm ci && npm test    # 14 backend tests
+```
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [Evaluator Guide](docs/EVALUATOR_GUIDE.md) | Test every feature in ten minutes without credentials |
+| [Software Requirements Specification](docs/SRS.md) | Functional and non-functional requirements with acceptance criteria |
+| [Architecture](docs/ARCHITECTURE.md) | Design, diagrams, security, decisions and trade-offs |
+| [Test Report](docs/TEST_REPORT.md) | Automated and on-device results, requirement-to-evidence matrix |
+| [Performance](docs/PERFORMANCE.md) | Latency measured on a physical device |
+| [User Guide](docs/USER_GUIDE.md) | How to use every feature |
+| [Backend API](docs/API.md) | REST endpoints and delivery semantics |
+| [Build and Deployment](docs/DEPLOYMENT.md) | Building the APK, running the backend, Google Cloud setup |
+| [Submission summary](SUBMISSION.md) | One-page status against the assignment |
+
+A single printable PDF of these documents is generated by `python3 docs/build_report.py` (see [docs/Aurviz_Project_Report.pdf](docs/Aurviz_Project_Report.pdf)).
+
+## Project structure
+
+```
+app/                     Android app (Kotlin, Compose, Room, WorkManager)
+  presentation/          Screens and ViewModels
+  domain/                Orchestrator, tool contract, mail abstraction, models (pure Kotlin)
+  data/                  Gemini client, mail services, Room, tools
+  service/               Background worker, voice, browser controller
+backend/                 Node.js + PostgreSQL service (OAuth, Gmail API, job queue)
+docs/                    Documentation and logo
+```
 
 ## Known limitations
 
-See "Known limits" in [SUBMISSION.md](SUBMISSION.md). In short: WorkManager timing is inexact, `gmail.readonly` requires OAuth test users or Google verification, memory search is lexical, and the WebView is not a hardened sandbox.
+- WorkManager is durable but not exact to the minute; Android may delay tasks.
+- `gmail.readonly` is a Google restricted scope: real accounts must be test users until the app is verified. The demo mailbox avoids this for evaluation.
+- Memory search matches words, not meaning.
+- The controlled browser is not a hardened sandbox; avoid sign-in or payment pages.
+- A Gemini key bundled into an APK can be extracted; production should proxy Gemini through the backend.
+
+## Author
+Aditya Kushwaha
