@@ -6,7 +6,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aurviz.agent.presentation.theme.SurfaceLight
 import com.aurviz.agent.presentation.theme.TextPrimary
 import com.aurviz.agent.presentation.theme.PrimaryBlue
@@ -119,7 +121,7 @@ fun AppNavigation(
                     items.forEach { screen ->
                         NavigationBarItem(
                             icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
+                            label = { Text(screen.title, maxLines = 1, softWrap = false, overflow = TextOverflow.Clip, fontSize = 11.sp) },
                             selected = currentRoute == screen.route,
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = PrimaryBlue,

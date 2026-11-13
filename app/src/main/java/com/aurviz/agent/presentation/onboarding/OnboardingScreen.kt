@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.aurviz.agent.presentation.components.AurvizLogo
+import com.aurviz.agent.presentation.components.CenteredScroll
 import kotlinx.coroutines.launch
 
 /** First-run walkthrough. The last page lets evaluators start instantly with the demo mailbox. */
@@ -99,10 +100,9 @@ fun OnboardingScreen(onFinish: (source: String) -> Unit) {
 
 @Composable
 private fun HeroPage() {
-    Column(
+    CenteredScroll(
         modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         AurvizLogo(size = 120.dp)
         Spacer(modifier = Modifier.height(32.dp))
@@ -119,10 +119,7 @@ private fun HeroPage() {
 
 @Composable
 private fun FeaturesPage() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center
-    ) {
+    CenteredScroll(modifier = Modifier.fillMaxSize()) {
         Text("Talk or type. Aurviz acts.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(20.dp))
         FeatureRow(Icons.Default.Email, "Email assistant", "Search, summarize and draft mail. It only sends after you approve.")
@@ -150,10 +147,7 @@ private fun FeatureRow(icon: ImageVector, title: String, text: String) {
 
 @Composable
 private fun StartPage(onFinish: (String) -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center
-    ) {
+    CenteredScroll(modifier = Modifier.fillMaxSize()) {
         Text("Choose a mailbox", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
         Text(

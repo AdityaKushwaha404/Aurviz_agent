@@ -24,7 +24,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -79,7 +84,14 @@ class MainActivity : ComponentActivity() {
                 var showSplash by rememberSaveable { mutableStateOf(true) }
                 var showOnboarding by rememberSaveable { mutableStateOf(!app.securePreferences.isOnboardingDone()) }
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                // On tablets and foldables keep the phone layout centered at a readable width.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.TopCenter
+                ) {
+                Box(modifier = Modifier.widthIn(max = 640.dp).fillMaxSize()) {
                     if (showOnboarding) {
                         val scope = rememberCoroutineScope()
                         OnboardingScreen(
@@ -109,13 +121,15 @@ class MainActivity : ComponentActivity() {
                             onSharedTextHandled = { pendingSharedText = null }
                         )
                     }
-                    AnimatedVisibility(
-                        visible = showSplash,
-                        enter = fadeIn(),
-                        exit = fadeOut(tween(350))
-                    ) {
-                        SplashOverlay(onFinished = { showSplash = false })
-                    }
+                }
+                // The opening animation covers the whole screen, not just the centered column.
+                AnimatedVisibility(
+                    visible = showSplash,
+                    enter = fadeIn(),
+                    exit = fadeOut(tween(350))
+                ) {
+                    SplashOverlay(onFinished = { showSplash = false })
+                }
                 }
             }
         }

@@ -141,7 +141,9 @@ fun AgentScreen(
                             "Aurviz",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            softWrap = false
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
@@ -151,20 +153,16 @@ fun AgentScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                activity ?: "Ready",
+                                when {
+                                    activity != null -> activity
+                                    mailSource == "DEMO" -> "Demo mailbox"
+                                    mailSource == "TEST" -> "Test account"
+                                    else -> "Ready"
+                                },
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    if (mailSource != "OWN") {
-                        Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                            Text(
-                                if (mailSource == "DEMO") "DEMO" else "TEST ACCOUNT",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -324,7 +322,7 @@ private fun Composer(
             TextField(
                 value = value,
                 onValueChange = onValueChange,
-                placeholder = { Text(if (isListening) "Listening…" else "Ask Aurviz anything") },
+                placeholder = { Text(if (isListening) "Listening…" else "Ask Aurviz anything", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 modifier = Modifier
                     .weight(1f)
                     .heightIn(min = 48.dp),

@@ -110,7 +110,7 @@ Priority: **P0** must have, **P1** should have, **P2** nice to have.
 | NFR-07 | Fault tolerance | Handle outages gracefully | Offline check before background runs; retry actions; model fallback chain; backend cold-start-safe timeouts and warm-up |
 | NFR-08 | Usability | Intuitive interface | One-tap mic, live "what the agent is doing" status, tool timeline, approval dialogs, onboarding, dark mode |
 | NFR-09 | Resource efficiency | Low battery and memory impact | WorkManager only (no persistent service), network constraints, bounded tables and context |
-| NFR-10 | Compatibility | Wide device support | minSdk 26, adaptive and themed icon, runtime permissions, tested on Android 16 |
+| NFR-10 | Compatibility and responsiveness | Wide device support and any screen size | minSdk 26, adaptive and themed icon, runtime permissions, tested on Android 16. Layouts adapt: scrolling pages on short screens, one-line titles and labels under large fonts (checked at font scale 1.6), and a centered 640 dp column on tablets. Checked at 360 x 640 dp, 411 x 914 dp and 600 x 960 dp |
 | NFR-12 | Safe shared access | A reviewer-facing account must not be abusable | Server-enforced: sends only to itself or example.com addresses, no disconnect; throwaway account |
 | NFR-11 | Privacy | Minimise data exposure | Page and text attachments are sent only when the user triggers an action; demo mode never contacts Gmail |
 

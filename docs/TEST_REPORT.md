@@ -81,6 +81,9 @@ Tested on the physical device against the deployed backend.
 | D25 | FR-16, FR-06 | Test account: "Draft a formal email to Meera Rao… do not send it" | Draft saved in Gmail Drafts, formal wording, nothing sent | Pass (Gmail screenshots) |
 | D26 | FR-21 | Browser: type words in the address bar; open the menu; bookmark; open Bookmarks and History; Reader view | Search results; menu with Find, Reader, Desktop, text size, Share, Copy, Open in Chrome; the bookmark is listed | Pass |
 | D27 | FR-09, FR-22 | "Open en.wikipedia.org/wiki/Mumbai and read the page", then tap Key facts | The agent opens the browser by itself; the chat returns a structured, dated fact list | Pass |
+| D28 | NFR-10 | Simulated small phone (360 x 640 dp): onboarding, chat, Settings, Tasks, browser | No clipped or unreachable content; the onboarding mailbox page scrolls so every button is reachable | Pass |
+| D29 | NFR-10 | Accessibility font scale 1.6 on the small screen | After fixes: title stays on one line, bottom tab labels do not break, the message hint truncates cleanly | Pass |
+| D30 | NFR-10 | Simulated tablet width (600 x 960 dp) | Content stays centered at a readable width (max 640 dp) instead of stretching edge to edge | Pass |
 | D17 | NFR-01 | 30 simple prompts | Median 1.6 s, on-device overhead about 0.1 s | Pass |
 | D18 | FR-27, 28 | Open the mailbox viewer in demo mode | Inbox with unread in bold; tabs for Sent and Drafts | Pass |
 | D19 | FR-27 | Ask Aurviz to draft an email, then to send one, then open the Drafts and Sent tabs | The Drafts and Sent tabs show the new messages | Pass |
@@ -92,6 +95,9 @@ Tested on the physical device against the deployed backend.
 ### Defects found during device testing, and fixed
 | Defect | Fix |
 |---|---|
+| Large font sizes broke the header ("Aurvi/z"), the bottom tabs ("Memor/y") and the message hint | One-line titles and labels, compact tab text, ellipsized hint; verified at font scale 1.6 |
+| Onboarding pages could cut off buttons on short screens | Pages now scroll when they do not fit (`CenteredScroll`) |
+| Layout stretched across very wide screens | Content column capped at 640 dp and centered |
 | A background task could pop the browser screen open or wait for it | Screen-bound tools are refused in background runs; regression test added |
 | Agent tab showed Settings after opening Settings from the sign-in banner (tab back stacks nested) | Links use the same tab navigation as the bottom bar |
 | Search label showed `'{}'` when the model sent an empty query | Symbol-only queries mean "recent inbox" |
